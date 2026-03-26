@@ -1,0 +1,48 @@
+/* PLC-CORE-MDE — Global Stylesheet v3
+   Compartido por index, program y monitor */
+
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+
+:root {
+  --bg:        #0a0d12;
+  --bg2:       #0f1318;
+  --panel:     #141920;
+  --panel2:    #1a2130;
+  --border:    #1e2a38;
+  --border2:   #263445;
+  --accent:    #f5a623;
+  --accent2:   #3ab4f2;
+  --green:     #00e676;
+  --red:       #ff3d5a;
+  --yellow:    #ffd740;
+  --text:      #c8d6e5;
+  --text-dim:  #4a6070;
+  --text-mid:  #7a9ab0;
+  --font-ui:   'Exo 2', sans-serif;
+  --font-mono: 'Share Tech Mono', monospace;
+  --font-head: 'Rajdhani', sans-serif;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  font-family: var(--font-ui);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent2); }
+
+/* Utility */
+.mono { font-family: var(--font-mono); }
+.dim  { color: var(--text-dim); }
+.mid  { color: var(--text-mid); }
+.accent  { color: var(--accent); }
+.accent2 { color: var(--accent2); }
+.green { color: var(--green); }
+.red   { color: var(--red); }
