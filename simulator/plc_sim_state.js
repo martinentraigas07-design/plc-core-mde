@@ -1,4 +1,13 @@
 // =============================================================
+// PLC-CORE-MDE Project
+// Copyright (c) 2026 Martín Entraigas / PLC-CORE-MDE
+// Argentina
+// Licensed under PLC-CORE-MDE License v1.0
+// Educational use allowed
+// Commercial use requires authorization
+// =============================================================
+
+// =============================================================
 // plc_sim_state.js — PLC-CORE-MDE Cloud Simulator
 // Mirrors firmware: plc_state.h, plc_runtime.h, plc_modbus.h
 // Global mutable state — all simulator modules share this object
