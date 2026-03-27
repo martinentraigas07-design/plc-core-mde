@@ -238,7 +238,7 @@
   <button class="ctrl-btn save" onclick="saveProgram()">💾 GUARDAR</button>
   <button class="ctrl-btn" onclick="openTags()" title="Editar etiquetas de IO">🏷 TAGS</button>
   <div class="topbar-sep"></div>
-  <button onclick="location.href='index.html'">INICIO</button>
+  <a href="index.html"><button class="ctrl-btn">⌂ INICIO</button></a>
 </div>
 
 <!-- PALETTE -->
@@ -413,69 +413,6 @@ function saveTags() {
     body: JSON.stringify(tagsData)
   }).then(()=>{ closeTags(); alert('Tags guardados'); });
 }
-</script>
-<script>
-
-// =============================================================
-// SIMULATOR PROGRAM RESTORE
-// =============================================================
-
-window.addEventListener("load", () => {
-
-  try {
-
-    const saved = localStorage.getItem("plc_program");
-
-    if (!saved) {
-      console.log("[SIM] No saved program");
-      return;
-    }
-
-    const json = JSON.parse(saved);
-
-    if (!json) return;
-
-    // esperar a que editor exista
-    let tries = 0;
-
-    const timer = setInterval(() => {
-
-      if (typeof editor !== "undefined" && editor) {
-
-        clearInterval(timer);
-
-        try {
-
-          editor.clear();
-          editor.import(json);
-
-          console.log("[SIM] Program restored");
-
-        } catch (e) {
-
-          console.warn("[SIM] restore failed", e);
-
-        }
-
-      }
-
-      tries++;
-
-      if (tries > 50) {
-        clearInterval(timer);
-        console.warn("[SIM] editor not found");
-      }
-
-    }, 100);
-
-  } catch (e) {
-
-    console.warn("[SIM] restore error", e);
-
-  }
-
-});
-
 </script>
 </body>
 </html>

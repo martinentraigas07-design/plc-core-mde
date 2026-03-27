@@ -215,7 +215,7 @@
     ◉ WIFI
   </div>
   <div class="topbar-sep"></div>
-  <a href="/"><button class="ctrl-btn">⌂</button></a>
+  <a href="index.html"><button class="ctrl-btn">⌂</button></a>
 </div>
 
 <!-- MONITOR GRID -->
@@ -575,10 +575,9 @@ refreshModbus();
 setInterval(refreshModbus, 2000);
 
 </script>
-
 <!-- ═══════════════════════════════════════════════════════════
      PLC-CORE-MDE CLOUD SIMULATOR
-     Load order matters: state → io → runtime → modbus → scan → panels
+     Load order: state → io → runtime → modbus → scan → panels
      ═══════════════════════════════════════════════════════════ -->
 <script src="simulator/plc_sim_state.js"></script>
 <script src="simulator/plc_sim_io.js"></script>
