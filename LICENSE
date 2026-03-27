@@ -1,0 +1,270 @@
+PLC-CORE-MDE License v1.0
+
+Copyright (c) 2026 Martín Entraigas / PLC-CORE-MDE
+ Argentina
+
+
+ENGLISH VERSION
+1. Definitions
+
+"Project" refers to the PLC-CORE-MDE system, including firmware, software, web server, simulator, hardware designs, documentation, schematics, PCB files, and related materials.
+
+"Author" refers to Martín Entraigas, creator of PLC-CORE-MDE.
+
+"Commercial use" means any use involving sale, manufacturing for sale, paid services, or integration into products sold to third parties.
+
+"Compatible hardware" means external modules or devices designed to work with PLC-CORE-MDE without copying the full system.
+
+2. Copyright
+
+Copyright (c) 2026 Martín Entraigas / PLC-CORE-MDE, Argentina.
+All rights reserved.
+
+This project is protected by copyright law and international treaties.
+
+3. Allowed Use
+
+The Project may be used for:
+
+Educational purposes
+Personal projects
+Research and experimentation
+Academic work
+Non-commercial development
+Learning and teaching
+Internal use in companies only when original hardware is purchased from the Author
+4. Modification and Forks
+
+You may:
+
+Study the source code
+ Modify the Project
+Create forks
+Publish modifications
+
+Provided that:
+
+Credit is given to the Author
+This license remains unchanged
+Modified versions are released under the same license
+Changes are clearly indicated
+5. Redistribution
+
+Redistribution is allowed only if:
+
+This license is included
+The Author is credited
+The project name is preserved
+No commercial use is made
+6. Commercial Restriction
+
+Commercial use is NOT allowed without written permission from the Author.
+
+Prohibited without authorization:
+
+Selling PLC-CORE-MDE hardware
+Selling firmware or software
+Selling modified versions
+Manufacturing for sale
+Using the project in commercial products
+Selling kits or clones
+Offering the system as a commercial controller
+
+Commercial licenses may be granted only by the Author.
+
+7. Dual License
+
+The Author may provide a separate commercial license.
+
+Companies may use the system commercially only when:
+
+Hardware is purchased from the Author, or
+A commercial license is granted
+8. Compatible Hardware
+
+It is allowed to design and manufacture compatible modules if:
+
+Full credit is given to PLC-CORE-MDE
+The name PLC-CORE-MDE is not used as product name without permission
+The full system is not copied
+The module is not sold as official hardware
+
+Example allowed:
+
+"Compatible with PLC-CORE-MDE"
+
+Example NOT allowed:
+
+"PLC-CORE-MDE Module" without permission
+
+9. Project Name Restriction
+
+The name "PLC-CORE-MDE" is protected.
+
+It may not be used for:
+
+Commercial products
+Company names
+Controllers
+Hardware sales
+
+without permission from the Author.
+
+10. Hardware Restriction
+
+Hardware designs may be used for:
+
+Education
+Personal projects
+Research
+
+Manufacturing for sale is not allowed without permission.
+
+11. Warranty Disclaimer
+
+This project is provided "as is" without warranty.
+
+The Author is not responsible for:
+
+Damage
+Loss
+Malfunction
+Industrial failure
+Personal injury
+
+Use at your own risk.
+
+12. Acceptance
+
+By using this Project you agree to this license.
+
+If you do not agree, you must not use the Project.
+
+VERSIÓN EN ESPAÑOL
+1. Definiciones
+
+"Proyecto" se refiere al sistema PLC-CORE-MDE, incluyendo firmware, software, servidor web, simulador, hardware, esquemas, PCB, documentación y archivos relacionados.
+
+"Autor" se refiere a Martín Entraigas, creador de PLC-CORE-MDE.
+
+"Uso comercial" significa cualquier uso que implique venta, fabricación para venta, servicios pagos o integración en productos comerciales.
+
+"Hardware compatible" significa módulos o dispositivos que funcionen con PLC-CORE-MDE sin copiar el sistema completo.
+
+2. Derechos de autor
+
+Copyright (c) 2026 Martín Entraigas / PLC-CORE-MDE, Argentina.
+Todos los derechos reservados.
+
+Este proyecto está protegido por leyes de propiedad intelectual y tratados internacionales.
+
+3. Usos permitidos
+
+El proyecto puede utilizarse para:
+
+Educación
+Uso personal
+Investigación
+Proyectos académicos
+Desarrollo no comercial
+Enseñanza
+Uso interno en empresas solo si el hardware fue adquirido al Autor
+4. Modificaciones y forks
+
+Se permite:
+
+Estudiar el código
+Modificar
+Crear forks
+Publicar modificaciones
+
+Siempre que:
+
+Se dé crédito al Autor
+No se cambie esta licencia
+Las modificaciones usen la misma licencia
+Se indiquen los cambios
+5. Redistribución
+
+Permitida solo si:
+
+Se incluye esta licencia
+Se menciona al Autor
+Se mantiene el nombre del proyecto
+No hay uso comercial
+6. Restricción comercial
+
+NO se permite uso comercial sin autorización escrita del Autor.
+
+Prohibido sin permiso:
+
+Vender PLC-CORE-MDE
+Vender firmware o software
+Fabricar para venta
+Vender clones
+Usar en productos comerciales
+Comercializar el controlador
+
+Las licencias comerciales solo pueden ser otorgadas por el Autor.
+
+7. Licencia dual
+
+El Autor puede otorgar una licencia comercial separada.
+
+Las empresas pueden usar el sistema solo si:
+
+Compran el hardware al Autor, o
+Obtienen licencia comercial
+8. Hardware compatible
+
+Se permite fabricar módulos compatibles si:
+
+Se da crédito a PLC-CORE-MDE
+No se usa el nombre sin permiso
+No se copia el sistema completo
+No se vende como producto oficial
+
+Permitido:
+
+"Compatible con PLC-CORE-MDE"
+
+No permitido:
+
+"Módulo PLC-CORE-MDE" sin permiso
+
+9. Restricción del nombre
+
+El nombre "PLC-CORE-MDE" está protegido.
+
+No puede usarse para:
+
+Productos comerciales
+Empresas
+Controladores
+Hardware
+
+sin autorización.
+
+10. Restricción de hardware
+
+Los diseños pueden usarse para:
+
+Educación
+Uso personal
+Investigación
+
+No se permite fabricar para venta sin permiso.
+
+11. Exclusión de garantía
+
+El proyecto se entrega sin garantía.
+
+El Autor no se responsabiliza por daños, fallas o pérdidas.
+
+Uso bajo responsabilidad del usuario.
+
+12. Aceptación
+
+El uso del proyecto implica aceptación de esta licencia.
+
+Si no acepta, no debe utilizarlo.
