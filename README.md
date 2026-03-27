@@ -60,3 +60,14 @@ This project is intended for:
 
 Author: Martin Entraigas
 Project: PLC-CORE-MDE
+
+## License
+
+PLC-CORE-MDE License v1.0
+
+Copyright (c) 2026 Martín Entraigas / PLC-CORE-MDE, Argentina
+
+Educational use allowed.
+Commercial use requires authorization.
+
+See LICENSE file for full terms.
