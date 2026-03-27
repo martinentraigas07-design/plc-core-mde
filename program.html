@@ -341,6 +341,50 @@ function saveProgram() {
 
 updateStatus();
 setInterval(updateStatus, 3000);
+
+// ─────────────────────────────────────────────────────────────
+// PROGRAM RESTORE — reload saved program into Drawflow on F5
+// Waits until the global "editor" object (created by editor.js)
+// is ready, then imports the JSON stored in localStorage.
+// Works in simulator, ESP32 SPIFFS, and GitHub Pages.
+// Does NOT modify fetch(), runtime, or simulator files.
+// ─────────────────────────────────────────────────────────────
+(function restoreProgramOnLoad() {
+  var raw;
+  try { raw = localStorage.getItem('plc_program'); } catch(e) { return; }
+  if (!raw) return;                       // nothing saved — nothing to do
+
+  var json;
+  try { json = JSON.parse(raw); } catch(e) { return; }  // corrupt data — skip
+
+  // Poll until Drawflow "editor" global is defined and initialised.
+  // editor.js sets window.editor synchronously, but the DOM script
+  // execution order means we may arrive here before it finishes.
+  var attempts = 0;
+  var maxAttempts = 100;                  // 100 × 50 ms = 5 s max wait
+  var interval = setInterval(function() {
+    attempts++;
+    if (typeof editor !== 'undefined' && typeof editor.import === 'function') {
+      clearInterval(interval);
+      try {
+        editor.import(json);
+        // Visual feedback: brief glow on GUARDAR button
+        var btn = document.querySelector('.ctrl-btn.save');
+        if (btn) {
+          btn.style.boxShadow = '0 0 16px rgba(58,180,242,0.5)';
+          setTimeout(function() { btn.style.boxShadow = ''; }, 800);
+        }
+      } catch(e) {
+        // Import failed (e.g. incompatible JSON) — silently ignore
+        console.warn('[PLC] restoreProgramOnLoad: import failed', e);
+      }
+    } else if (attempts >= maxAttempts) {
+      clearInterval(interval);
+      console.warn('[PLC] restoreProgramOnLoad: editor not ready after timeout');
+    }
+  }, 50);
+})();
+// ─────────────────────────────────────────────────────────────
 </script>
 
 <!-- Tags Modal -->
