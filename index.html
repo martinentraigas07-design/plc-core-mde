@@ -35,8 +35,10 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     position: relative;
+    padding: 20px;
   }
 
   /* Grid background */
@@ -98,7 +100,7 @@
     from { filter: drop-shadow(0 0 20px rgba(245,166,35,0.3)); }
     to   { filter: drop-shadow(0 0 50px rgba(245,166,35,0.6)) drop-shadow(0 0 80px rgba(58,180,242,0.2)); }
   }
-  .logo-wrap img { width:220px; height:auto; display:block; }
+  .logo-wrap img { width:clamp(140px,35vw,210px); height:auto; display:block; }
 
   .sys-title {
     font-family: var(--font-head);
@@ -115,23 +117,20 @@
     font-size:11px;
     color: var(--accent2);
     letter-spacing:3px;
-    margin-bottom:48px;
+    margin-bottom:clamp(20px,5vw,48px);
     opacity:0.7;
   }
 
   .menu-grid {
     display:grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap:14px;
-    width:520px;
-    margin-bottom:32px;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap:12px;
+    width:min(540px,96vw);
+    margin-bottom:28px;
   }
   .menu-btn-row2 {
-    grid-column: 1 / 4;
-    display:grid;
-    grid-template-columns: 1fr 1fr;
-    gap:14px;
-    width:100%;
+    grid-column: auto;
+    display:contents;
   }
 
   .menu-btn {
@@ -204,11 +203,23 @@
     50% { opacity:0.3; }
   }
 
-  #plc-mode {
-    color: var(--green);
-    font-weight:bold;
+  #plc-mode { color:var(--green); font-weight:bold; }
+  .corner { display:none; }
+  @media(min-width:480px){ .corner{ display:block; } }
+  @media(max-width:600px){
+    .sys-title{ font-size:11px; letter-spacing:5px; }
+    .sys-sub  { font-size:9px; letter-spacing:2px; }
+    .status-bar{ font-size:8px; flex-wrap:wrap; justify-content:center; }
   }
 </style>
+<!-- ══ SIMULADOR PLC-CORE-MDE ══ -->
+<script src="simulator/plc_sim_state.js"></script>
+<script src="simulator/plc_sim_io.js"></script>
+<script src="simulator/plc_sim_modbus.js"></script>
+<script src="simulator/plc_sim_runtime.js"></script>
+<script src="simulator/plc_sim_scan.js"></script>
+<script src="simulator/sim_panel.js"></script>
+<!-- ══════════════════════════════ -->
 </head>
 <body>
 
@@ -236,16 +247,15 @@
       <div class="btn-label">Monitor</div>
       <div class="btn-desc">Telemetría / IO</div>
     </a>
+    <a href="ladder.html" class="menu-btn" style="border-top-color:var(--green);">
+      <div class="btn-icon" style="color:var(--green);">⚡</div>
+      <div class="btn-label">Ladder</div>
+      <div class="btn-desc">Editor escalera LD</div>
+    </a>
     <a href="manual.html" class="menu-btn" style="border-top-color:var(--accent2);">
       <div class="btn-icon" style="color:var(--accent2);">◉</div>
       <div class="btn-label">Manual</div>
       <div class="btn-desc">Ejemplos y bloques</div>
-    </a>
-    <!-- Fila 2: ABOUT, RUN, STOP -->
-    <a href="about.html" class="menu-btn">
-      <div class="btn-icon">ℹ</div>
-      <div class="btn-label">About</div>
-      <div class="btn-desc">Sistema / Licencia</div>
     </a>
     <a href="#" class="menu-btn" onclick="fetch('/plc/run').then(()=>updateMode()); return false;">
       <div class="btn-icon">▶</div>
@@ -288,7 +298,7 @@ function updateMode() {
 updateMode();
 setInterval(updateMode, 2000);
 </script>
-<!-- PLC-CORE-MDE License Overlay -->
-<div style="position:fixed;bottom:0;left:0;width:100%;font-size:11px;color:#888;text-align:center;pointer-events:none;z-index:9999;">PLC-CORE-MDE &copy; 2026 Mart&iacute;n Entraigas / PLC-CORE-MDE &mdash; Licensed under PLC-CORE-MDE License v1.0 &mdash; Commercial use requires authorization</div>
+<div class="license-footer">PLC-CORE-MDE &copy; 2026 Martín Entraigas – MDE Electrónica&nbsp;&nbsp;Uso no comercial únicamente.&nbsp;&nbsp;<a href="LICENSE.txt" target="_blank">Ver licencia completa</a></div>
+<style>.license-footer{font-family:var(--font-mono,monospace);font-size:9px;color:var(--text-dim,#4a6070);text-align:center;padding:8px 16px;letter-spacing:.5px;position:relative;z-index:10;}</style>
 </body>
 </html>

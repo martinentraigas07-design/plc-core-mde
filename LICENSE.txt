@@ -1,0 +1,284 @@
+# PLC-CORE-MDE Community License v1.0
+
+Copyright (c) 2026 Martín Entraigas – MDE Electrónica
+Argentina
+
+---
+
+# ENGLISH VERSION
+
+## 1. Overview
+
+PLC-CORE-MDE is an educational and industrial-oriented platform including software, firmware, hardware designs, simulator, and documentation.
+
+This license allows learning, research, and non-commercial use while protecting the commercial rights of the Author.
+
+---
+
+## 2. Definitions
+
+* **Project**: All code, firmware, hardware designs, schematics, PCB files, simulator, documentation, and related materials.
+* **Author**: Martín Entraigas / MDE Electrónica.
+* **Non-Commercial Use**: Personal, educational, academic, or research use without financial gain.
+* **Commercial Use**: Any use involving sale, manufacturing, paid services, or integration into commercial products.
+
+---
+
+## 3. Permissions (Allowed Use)
+
+You are allowed to:
+
+* Use the Project for educational purposes
+* Use the Project for personal and academic projects
+* Study and analyze the source code
+* Modify the Project
+* Create forks and share them
+* Use in teaching environments (schools, courses, workshops)
+
+---
+
+## 4. Conditions
+
+You must:
+
+* Provide proper attribution to the Author
+* Include this license in any redistribution
+* Clearly indicate modifications
+* Keep this license unchanged
+
+---
+
+## 5. Non-Commercial Restriction
+
+The Project may NOT be used for commercial purposes without explicit written permission.
+
+Prohibited without authorization:
+
+* Selling hardware based on this Project
+* Selling firmware or software
+* Selling modified versions
+* Manufacturing for sale
+* Offering PLC-CORE-MDE as a commercial product
+* Using the system in commercial automation solutions
+* Selling educational kits based on this Project
+
+---
+
+## 6. Commercial Licensing
+
+Commercial use requires a separate license.
+
+To obtain a commercial license, contact:
+
+MDE Electrónica
+(Add your contact email here)
+
+Commercial agreements may include:
+
+* Hardware sales
+* OEM licensing
+* Educational licensing
+* Integration into commercial systems
+
+---
+
+## 7. Hardware Clause
+
+Hardware designs may be used for:
+
+* Education
+* Personal projects
+* Research
+
+Manufacturing for sale is strictly prohibited without permission.
+
+---
+
+## 8. Compatibility Clause
+
+It is allowed to develop compatible modules or extensions provided that:
+
+* They do not replicate the full system
+* Proper attribution is given
+* They are not marketed as official products
+* The name "PLC-CORE-MDE" is not used commercially without permission
+
+Allowed example:
+"Compatible with PLC-CORE-MDE"
+
+---
+
+## 9. Trademark
+
+"PLC-CORE-MDE" and "MDE Electrónica" are trademarks of the Author.
+
+They may not be used for:
+
+* Commercial products
+* Branding
+* Marketing
+
+without explicit permission.
+
+---
+
+## 10. Warranty Disclaimer
+
+This Project is provided "as is", without warranty of any kind.
+
+The Author is not responsible for:
+
+* Damages
+* Failures
+* Industrial losses
+* Personal injury
+
+Use at your own risk.
+
+---
+
+## 11. Acceptance
+
+By using this Project, you agree to this license.
+
+If you do not agree, you must not use the Project.
+
+---
+
+# VERSIÓN EN ESPAÑOL
+
+## 1. Descripción general
+
+PLC-CORE-MDE es una plataforma orientada a la educación y la automatización industrial que incluye software, firmware, diseños de hardware, simulador y documentación.
+
+Esta licencia permite el aprendizaje, la investigación y el uso no comercial, protegiendo los derechos comerciales del Autor.
+
+---
+
+## 2. Definiciones
+
+* **Proyecto**: Todo el código, firmware, diseños de hardware, esquemas, PCB, simulador, documentación y materiales relacionados.
+* **Autor**: Martín Entraigas / MDE Electrónica.
+* **Uso no comercial**: Uso personal, educativo, académico o de investigación sin fines de lucro.
+* **Uso comercial**: Cualquier uso que implique venta, fabricación para venta, servicios pagos o integración en productos comerciales.
+
+---
+
+## 3. Usos permitidos
+
+Se permite:
+
+* Uso con fines educativos
+* Uso en proyectos personales y académicos
+* Estudiar y analizar el código fuente
+* Modificar el proyecto
+* Crear forks y compartirlos
+* Uso en entornos de enseñanza (escuelas, cursos, talleres)
+
+---
+
+## 4. Condiciones
+
+Se debe:
+
+* Dar atribución al Autor
+* Incluir esta licencia en cualquier redistribución
+* Indicar claramente las modificaciones
+* Mantener esta licencia sin cambios
+
+---
+
+## 5. Restricción de uso comercial
+
+NO se permite el uso comercial sin autorización expresa por escrito.
+
+Prohibido sin autorización:
+
+* Vender hardware basado en el proyecto
+* Vender firmware o software
+* Vender versiones modificadas
+* Fabricar para venta
+* Ofrecer PLC-CORE-MDE como producto comercial
+* Usar el sistema en soluciones industriales comerciales
+* Vender kits educativos basados en este proyecto
+
+---
+
+## 6. Licencia comercial
+
+El uso comercial requiere una licencia separada.
+
+Para obtener una licencia comercial, contactar a:
+
+MDE Electrónica
+(Agregar correo electrónico)
+
+Los acuerdos comerciales pueden incluir:
+
+* Venta de hardware
+* Licencias OEM
+* Licencias educativas
+* Integración en sistemas comerciales
+
+---
+
+## 7. Cláusula de hardware
+
+Los diseños de hardware pueden utilizarse para:
+
+* Educación
+* Uso personal
+* Investigación
+
+No se permite la fabricación para venta sin autorización.
+
+---
+
+## 8. Compatibilidad
+
+Se permite desarrollar módulos o extensiones compatibles siempre que:
+
+* No repliquen el sistema completo
+* Se dé atribución al proyecto
+* No se comercialicen como productos oficiales
+* No se use el nombre "PLC-CORE-MDE" sin autorización
+
+Ejemplo permitido:
+"Compatible con PLC-CORE-MDE"
+
+---
+
+## 9. Marca
+
+"PLC-CORE-MDE" y "MDE Electrónica" son marcas del Autor.
+
+No pueden utilizarse para:
+
+* Productos comerciales
+* Branding
+* Marketing
+
+sin autorización expresa.
+
+---
+
+## 10. Exclusión de garantía
+
+Este proyecto se proporciona "tal cual", sin garantía de ningún tipo.
+
+El Autor no se responsabiliza por:
+
+* Daños
+* Fallas
+* Pérdidas industriales
+* Lesiones personales
+
+Uso bajo responsabilidad del usuario.
+
+---
+
+## 11. Aceptación
+
+El uso de este proyecto implica la aceptación de esta licencia.
+
+Si no está de acuerdo, no debe utilizar el Proyecto

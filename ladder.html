@@ -1,0 +1,2223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- ══ SIMULADOR PLC-CORE-MDE ══ -->
+<script src="simulator/plc_sim_state.js"></script>
+<script src="simulator/plc_sim_io.js"></script>
+<script src="simulator/plc_sim_modbus.js"></script>
+<script src="simulator/plc_sim_runtime.js"></script>
+<script src="simulator/plc_sim_scan.js"></script>
+<script src="simulator/sim_panel.js"></script>
+<!-- ══════════════════════════════ -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PLC-CORE-MDE — Ladder PRO</title>
+<link rel="stylesheet" href="style.css">
+<script src="js/api/plc_api.js"></script>
+<script src="js/compiler/compiler.js"></script>
+<script src="js/compiler/symbol_table.js"></script>
+<script src="js/compiler/ladder_ast.js"></script>
+<script src="js/compiler/ladder_program.js"></script>
+<script src="js/compiler/ladder_decompiler.js"></script>
+<script src="js/ui/memory_panel.js"></script>
+<style>
+body { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+
+/* Layout */
+.ld-layout { flex:1; display:flex; overflow:hidden; min-height:0; }
+
+/* Palette */
+.ld-palette {
+  width:152px; min-width:100px; background:var(--bg2);
+  border-right:2px solid var(--border); overflow-y:auto;
+  flex-shrink:0; padding:0; display:flex; flex-direction:column;
+}
+.pal-section { padding:8px 8px 6px; border-bottom:1px solid var(--border); }
+.pal-stitle {
+  font-family:var(--font-mono); font-size:8px; letter-spacing:3px;
+  color:var(--text-dim); text-transform:uppercase; margin-bottom:5px;
+  padding-bottom:3px; border-bottom:1px solid var(--border);
+}
+.pal-item {
+  display:flex; align-items:center; gap:7px; padding:6px 7px;
+  margin-bottom:3px; background:var(--panel); border:1px solid var(--border);
+  border-radius:2px; cursor:pointer; font-family:var(--font-mono);
+  font-size:9px; color:var(--text-mid); user-select:none;
+  transition:all 0.1s; position:relative;
+}
+.pal-item:hover  { border-color:var(--accent2); color:var(--accent2); background:rgba(58,180,242,0.06); }
+.pal-item.active { border-color:var(--accent);  color:var(--accent);  background:rgba(245,166,35,0.10); }
+.pal-sym { font-size:13px; min-width:30px; text-align:center; letter-spacing:-1px; }
+.pal-lbl { font-size:8px; }
+.pal-sub { font-size:7px; color:var(--text-dim); }
+.pal-kbd {
+  position:absolute; right:4px; top:50%; transform:translateY(-50%);
+  font-family:var(--font-mono); font-size:7px; color:var(--text-dim);
+  background:var(--bg); border:1px solid var(--border); border-radius:2px; padding:1px 3px;
+}
+.pal-addrs {
+  font-family:var(--font-mono); font-size:8px; color:var(--text-dim);
+  line-height:1.9; padding:4px 4px;
+}
+.pal-addrs span { display:inline-block; min-width:14px; font-weight:700; }
+
+/* Canvas */
+.ld-canvas {
+  flex:1; overflow:auto; background:var(--bg); position:relative;
+  background-image:radial-gradient(circle, var(--border) 1px, transparent 1px);
+  background-size:24px 24px; background-position:12px 12px;
+}
+.ld-canvas-inner { padding:18px 24px 50px; min-width:720px; }
+
+/* Power rail wrapper */
+.ld-rail-wrap { display:flex; align-items:flex-start; gap:0; }
+.rail-L, .rail-R {
+  width:10px; background:var(--accent2); border-radius:2px;
+  flex-shrink:0; align-self:stretch; position:relative;
+}
+.rail-R { background:var(--accent); }
+.rail-lbl {
+  position:absolute; top:10px; left:50%; transform:translateX(-50%);
+  font-family:var(--font-mono); font-size:7px; color:var(--bg);
+  writing-mode:vertical-rl; letter-spacing:2px; font-weight:700;
+}
+
+/* Rungs list */
+.rungs-list {
+  flex:1; display:flex; flex-direction:column; gap:3px;
+  min-width:0; padding:4px 0;
+}
+
+/* Single rung */
+.rung {
+  display:flex; flex-direction:column; background:var(--panel);
+  border:1px solid var(--border); border-radius:2px; position:relative;
+  transition:border-color 0.1s; min-height:64px;
+}
+.rung:hover    { border-color:var(--border2); }
+.rung.sel      { border-color:var(--accent2); box-shadow:0 0 0 1px rgba(58,180,242,0.15); }
+.rung.drag-ov  { border-color:var(--accent);  background:rgba(245,166,35,0.04); }
+.rung.has-err  { border-color:var(--red);     box-shadow:0 0 0 1px rgba(255,61,90,0.15); }
+
+.rung-num {
+  position:absolute; left:-26px; top:50%; transform:translateY(-50%);
+  font-family:var(--font-mono); font-size:9px; color:var(--text-dim);
+  min-width:22px; text-align:right;
+}
+
+/* Comment bar */
+.rung-cmt {
+  font-family:var(--font-mono); font-size:9px; color:var(--text-dim);
+  padding:2px 8px; border-bottom:1px dashed var(--border);
+  cursor:text; display:flex; align-items:center; min-height:18px;
+}
+.rung-cmt.empty::before { content:'// comment...'; color:var(--border); }
+.rung-cmt input {
+  background:none; border:none; outline:none; color:var(--text-dim);
+  font-family:var(--font-mono); font-size:9px; width:100%; display:none;
+}
+.rung-cmt.editing .cmt-span { display:none; }
+.rung-cmt.editing input     { display:block; }
+
+/* Rung body row */
+.rung-body-row { display:flex; align-items:stretch; }
+
+/* Rung body (paths) */
+.rung-body { display:flex; flex-direction:column; flex:1; }
+
+/* Single path row */
+.rung-row {
+  display:flex; align-items:center; min-height:62px; position:relative;
+}
+.rung-row::before {
+  content:''; position:absolute; left:0; right:0; top:50%;
+  height:2px; background:var(--border2); z-index:0; pointer-events:none;
+}
+/* Vertical line for parallel rows */
+.rung-row.parallel::after {
+  content:''; position:absolute; left:0; top:-50%; bottom:50%;
+  width:3px; background:var(--border2); z-index:0; pointer-events:none;
+}
+
+/* Cell zone */
+.cell-zone {
+  display:flex; align-items:center; gap:2px;
+  flex:1; padding:6px 6px; z-index:1; position:relative;
+}
+
+/* Cell */
+.cell {
+  width:66px; height:52px; flex-shrink:0;
+  display:flex; flex-direction:column; align-items:center;
+  justify-content:center; position:relative; cursor:pointer;
+  border-radius:2px; z-index:2; transition:all 0.1s;
+}
+.cell.empty {
+  border:1px dashed var(--border); background:var(--bg2);
+}
+.cell.empty:hover   { border-color:var(--accent2); background:rgba(58,180,242,0.04); }
+.cell.empty.drop-tgt{ border-color:var(--accent); border-style:solid; background:rgba(245,166,35,0.08); }
+
+.cell.no { border:1px solid var(--border2); background:var(--panel2); }
+.cell.no:hover { border-color:var(--accent2); }
+
+.cell.nc { border:1px solid rgba(0,230,118,0.45); background:var(--panel2); }
+.cell.nc:hover { border-color:var(--green); }
+
+.c-sym  { font-family:var(--font-mono); font-size:15px; color:var(--accent2); letter-spacing:-1px; }
+.cell.nc .c-sym { color:var(--green); }
+.c-addr { font-family:var(--font-mono); font-size:10px; font-weight:700; color:var(--text); margin-top:2px; }
+.c-type { font-family:var(--font-mono); font-size:7px; letter-spacing:1px; color:var(--text-dim); text-transform:uppercase; }
+.c-del  {
+  position:absolute; top:2px; right:2px; font-size:8px;
+  color:var(--text-dim); cursor:pointer; width:12px; height:12px;
+  display:none; align-items:center; justify-content:center; border-radius:2px;
+}
+.cell:hover .c-del { display:flex; }
+.c-del:hover { color:var(--red); background:rgba(255,61,90,0.12); }
+
+/* Branch ctrl bar */
+.branch-bar {
+  display:flex; align-items:center; gap:6px;
+  padding:2px 8px 2px 30px;
+  border-top:1px dashed var(--border);
+  background:rgba(58,180,242,0.02);
+}
+.branch-btn {
+  padding:2px 8px; border:1px dashed var(--border2); border-radius:2px;
+  background:none; color:var(--text-dim); font-family:var(--font-mono);
+  font-size:8px; letter-spacing:1px; cursor:pointer; transition:all 0.1s;
+}
+.branch-btn:hover { border-color:var(--accent2); color:var(--accent2); }
+.branch-del:hover { border-color:var(--red); color:var(--red); }
+.branch-lbl { font-family:var(--font-mono); font-size:8px; color:var(--text-dim); }
+
+/* Coil zone */
+.coil-zone {
+  display:flex; flex-direction:column; justify-content:center;
+  gap:4px; padding:6px 8px 6px 6px; min-width:84px;
+  border-left:2px solid var(--border); z-index:1;
+  background:rgba(245,166,35,0.03); position:relative;
+}
+.coil-zone::before {
+  content:''; position:absolute; left:-8px; top:50%;
+  width:8px; height:2px; background:var(--border2); pointer-events:none;
+}
+
+/* Coil cell */
+.coil-cell {
+  width:76px; height:44px;
+  border:1px solid rgba(245,166,35,0.4); border-radius:2px;
+  background:var(--panel2); display:flex; flex-direction:column;
+  align-items:center; justify-content:center; cursor:pointer;
+  transition:all 0.1s; position:relative;
+}
+.coil-cell:hover       { border-color:var(--accent); background:rgba(245,166,35,0.08); }
+.coil-cell.set-c  { border-color:rgba(0,230,118,0.5); }
+.coil-cell.rst-c  { border-color:rgba(255,61,90,0.5); }
+.co-sym  { font-family:var(--font-mono); font-size:14px; color:var(--accent); }
+.coil-cell.set-c .co-sym { color:var(--green); }
+.coil-cell.rst-c .co-sym { color:var(--red); }
+.co-addr { font-family:var(--font-mono); font-size:10px; font-weight:700; color:var(--text); }
+.co-mode { font-family:var(--font-mono); font-size:7px; color:var(--text-dim); letter-spacing:1px; }
+
+.add-coil-btn {
+  width:76px; height:28px; border:1px dashed var(--border2); border-radius:2px;
+  background:none; color:var(--text-dim); font-family:var(--font-mono); font-size:8px;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; gap:3px;
+}
+.add-coil-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+/* Rung controls */
+.rung-ctrl {
+  display:flex; flex-direction:column; gap:3px; padding:5px 4px;
+  border-left:1px solid var(--border); background:var(--bg2);
+}
+.rctl-btn {
+  width:22px; height:22px; background:none; border:1px solid var(--border);
+  border-radius:2px; color:var(--text-dim); cursor:pointer; font-size:10px;
+  display:flex; align-items:center; justify-content:center; transition:all 0.1s;
+}
+.rctl-btn:hover        { border-color:var(--accent2); color:var(--accent2); }
+.rctl-btn.dng:hover    { border-color:var(--red);     color:var(--red); }
+.rctl-btn.mv:hover     { border-color:var(--yellow);  color:var(--yellow); }
+
+/* Error block */
+.rung-errs { background:rgba(255,61,90,0.08); border-top:1px solid rgba(255,61,90,0.3); padding:3px 8px; }
+.err-line  { font-family:var(--font-mono); font-size:8px; color:var(--red); letter-spacing:0.5px; margin:1px 0; }
+
+/* Add rung */
+.add-rung-row { display:flex; margin-top:8px; padding:0 8px; }
+.add-rung-btn {
+  flex:1; padding:9px; background:rgba(58,180,242,0.03);
+  border:1px dashed var(--border2); border-radius:2px; color:var(--text-dim);
+  font-family:var(--font-mono); font-size:9px; letter-spacing:3px;
+  cursor:pointer; transition:all 0.12s; text-align:center; text-transform:uppercase;
+}
+.add-rung-btn:hover { border-color:var(--accent2); color:var(--accent2); background:rgba(58,180,242,0.07); }
+
+/* ── Function block cells (TON, TOF, TP, CTU, CTD, etc.) ───── */
+/* A block cell sits inline in a path like a contact, but is taller
+   and wider to show the IEC-style box with ports on both sides.   */
+.cell.blk {
+  width:100px; height:64px; flex-shrink:0;
+  border:2px solid rgba(58,180,242,0.55);
+  background:var(--panel2);
+  border-radius:3px;
+  display:flex; flex-direction:column;
+  position:relative; cursor:pointer; z-index:2;
+  transition:border-color 0.1s;
+}
+.cell.blk:hover { border-color:var(--accent2); }
+
+/* Block title bar */
+.blk-title {
+  font-family:var(--font-mono); font-size:8px; font-weight:700;
+  letter-spacing:2px; text-transform:uppercase;
+  color:var(--accent2); text-align:center;
+  padding:2px 4px;
+  border-bottom:1px solid rgba(58,180,242,0.25);
+  background:rgba(58,180,242,0.06);
+}
+
+/* Block body — two columns: left ports, right ports */
+.blk-body {
+  display:flex; flex:1; align-items:stretch;
+  font-family:var(--font-mono); font-size:8px;
+}
+
+/* Left port column (inputs) */
+.blk-ports-l {
+  display:flex; flex-direction:column; justify-content:space-evenly;
+  padding:2px 5px; gap:2px; min-width:40px;
+  border-right:1px solid rgba(58,180,242,0.2);
+}
+
+/* Right port column (outputs) */
+.blk-ports-r {
+  display:flex; flex-direction:column; justify-content:space-evenly;
+  padding:2px 5px; gap:2px; min-width:40px; text-align:right;
+}
+
+/* Individual port label */
+.blk-port {
+  font-size:7px; line-height:1.2;
+  color:var(--text-dim); letter-spacing:0.5px;
+}
+.blk-port.main { color:var(--accent2); font-weight:700; }
+
+/* Block ID label (T0, C1, etc.) */
+.blk-id {
+  position:absolute; bottom:2px; right:4px;
+  font-family:var(--font-mono); font-size:7px;
+  color:var(--text-dim); letter-spacing:1px;
+}
+
+/* Delete button on block */
+.cell.blk .c-del {
+  position:absolute; top:2px; right:2px; font-size:8px;
+  color:var(--text-dim); cursor:pointer; width:12px; height:12px;
+  display:none; align-items:center; justify-content:center; border-radius:2px;
+}
+.cell.blk:hover .c-del { display:flex; }
+.cell.blk .c-del:hover { color:var(--red); background:rgba(255,61,90,0.12); }
+
+/* Horizontal wire through a block — the power rail line is extended
+   by ::before on the row, so the block must not interrupt it.
+   We add left/right connector stubs via pseudo-elements.          */
+.cell.blk::before,
+.cell.blk::after {
+  content:'';
+  position:absolute; top:50%; width:4px; height:2px;
+  background:var(--border2); z-index:0;
+}
+.cell.blk::before { left:-4px; }
+.cell.blk::after  { right:-4px; }
+
+/* Palette block items */
+.pal-blk {
+  font-size:7px; color:var(--text-dim); margin-top:1px; letter-spacing:0.5px;
+}
+
+/* Right panel */
+.ld-right {
+  width:210px; min-width:150px; flex-shrink:0;
+  border-left:2px solid var(--border); display:flex;
+  flex-direction:column; overflow:hidden; background:var(--bg2);
+}
+.ld-right-hdr {
+  padding:7px 10px; border-bottom:1px solid var(--border); background:var(--panel);
+  font-family:var(--font-head); font-size:9px; font-weight:700;
+  letter-spacing:3px; text-transform:uppercase; color:var(--text-dim); flex-shrink:0;
+}
+.ld-right-body { flex:1; overflow-y:auto; }
+
+.ast-pane {
+  border-top:1px solid var(--border); padding:6px 8px; background:var(--bg);
+  font-family:var(--font-mono); font-size:8px; color:var(--text-dim);
+  max-height:150px; overflow-y:auto; flex-shrink:0;
+}
+.ast-phdr {
+  font-size:7px; letter-spacing:3px; text-transform:uppercase; color:var(--text-dim);
+  margin-bottom:4px; border-bottom:1px solid var(--border); padding-bottom:2px;
+}
+.ast-expr { color:var(--accent2); word-break:break-all; line-height:1.6; }
+.ast-ok   { color:var(--green); }
+.ast-err  { color:var(--red); }
+
+/* Modal */
+.modal-bg {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,0.72);
+  z-index:600; align-items:center; justify-content:center;
+}
+.modal-bg.show { display:flex; }
+.modal-box {
+  background:var(--panel); border:1px solid var(--border2); border-radius:4px;
+  padding:20px 24px; min-width:262px; max-width:92vw;
+}
+.modal-ttl { font-family:var(--font-head); font-size:12px; letter-spacing:3px; text-transform:uppercase; color:var(--accent2); margin-bottom:14px; }
+.modal-lbl { font-family:var(--font-mono); font-size:9px; color:var(--text-dim); display:block; margin-bottom:3px; }
+.modal-inp {
+  width:100%; background:var(--bg); border:1px solid var(--border2); color:var(--text);
+  padding:7px 9px; border-radius:3px; font-family:var(--font-mono); font-size:13px; margin-bottom:5px;
+}
+.modal-inp:focus { outline:none; border-color:var(--accent2); }
+.modal-hint { font-family:var(--font-mono); font-size:8px; color:var(--text-dim); margin-bottom:14px; }
+.modal-row  { display:flex; gap:8px; justify-content:flex-end; }
+.modal-row button { padding:5px 16px; border:1px solid; border-radius:3px; cursor:pointer; font-family:var(--font-head); font-size:10px; letter-spacing:2px; text-transform:uppercase; }
+.btn-ok  { background:rgba(58,180,242,0.1); border-color:var(--accent2); color:var(--accent2); }
+.btn-cnl { background:none; border-color:var(--border2); color:var(--text-dim); }
+
+.mode-row { display:flex; gap:6px; margin-bottom:12px; }
+.mode-opt {
+  flex:1; padding:5px; border:1px solid var(--border2); border-radius:2px;
+  background:var(--bg2); color:var(--text-dim); font-family:var(--font-mono);
+  font-size:8px; text-align:center; cursor:pointer; letter-spacing:1px;
+}
+.mode-opt.sel { border-color:var(--accent); color:var(--accent); background:rgba(245,166,35,0.1); }
+
+/* Block modal — two-field form for block ID + preset */
+.blk-modal-row {
+  display:flex; gap:10px; margin-bottom:10px;
+}
+.blk-modal-col {
+  display:flex; flex-direction:column; flex:1;
+}
+.blk-modal-col .modal-inp { margin-bottom:0; }
+
+/* ── Energización de líneas + flujo animado ─────────────────── */
+/* Applied by updateVisualState() via .energized class on .rung-row.
+   No DOM recreation — only class toggling on existing elements.   */
+
+/* Horizontal wire energizada */
+.rung-row.energized::before {
+  background: var(--green);
+  box-shadow: 0 0 4px rgba(0,230,118,0.6);
+  height: 3px;
+}
+
+/* Vertical join energizado */
+.rung-row.parallel.energized::after {
+  background: var(--green);
+  box-shadow: 2px 0 4px rgba(0,230,118,0.4);
+  width: 3px;
+}
+
+/* Partícula de flujo animada */
+.wire-flow {
+  position: absolute; top: calc(50% - 3px);
+  width: 18px; height: 6px; border-radius: 3px;
+  background: rgba(0,230,118,0.0);
+  pointer-events: none; z-index: 1; left: 0;
+}
+.rung-row.energized .wire-flow {
+  background: rgba(0,230,118,0.75);
+  animation: flow-pulse 1.1s linear infinite;
+}
+@keyframes flow-pulse {
+  0%   { left: 0%;   opacity: 0; }
+  5%   { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { left: calc(100% - 18px); opacity: 0; }
+}
+
+/* Rail izquierdo energizado cuando algún rung está activo */
+.rail-L.energized {
+  background: var(--green);
+  box-shadow: 2px 0 8px rgba(0,230,118,0.5);
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+/* ── Debug visual: runtime state highlight ──────────────────── */
+/* Applied by updateVisualState() — never by static render.
+   Classes are toggled on existing DOM elements, no re-render.  */
+
+/* Active contact (condition is TRUE) */
+.cell.no.dbg-on,
+.cell.nc.dbg-on {
+  border-color: var(--green);
+  background: rgba(0,230,118,0.12);
+  box-shadow: 0 0 4px rgba(0,230,118,0.35);
+}
+.cell.no.dbg-on .c-sym,
+.cell.nc.dbg-on .c-sym { color: var(--green); }
+
+/* Active coil (output is energised) */
+.coil-cell.dbg-on {
+  border-color: var(--green);
+  background: rgba(0,230,118,0.12);
+  box-shadow: 0 0 5px rgba(0,230,118,0.4);
+}
+.coil-cell.dbg-on .co-sym { color: var(--green); }
+
+/* Active block (Q = true) */
+.cell.blk.dbg-on {
+  border-color: var(--green);
+  box-shadow: 0 0 6px rgba(0,230,118,0.5);
+}
+.cell.blk.dbg-on .blk-title {
+  background: rgba(0,230,118,0.15);
+  color: var(--green);
+}
+
+/* Live value display inside block (CV, ET) */
+.blk-live {
+  position: absolute; bottom: 2px; left: 4px;
+  font-family: var(--font-mono); font-size: 7px;
+  color: var(--green); letter-spacing: 0.5px;
+  pointer-events: none;
+}
+
+/* Debug mode indicator in status bar */
+.dbg-badge {
+  font-family: var(--font-mono); font-size: 8px; letter-spacing: 2px;
+  padding: 1px 6px; border-radius: 2px; border: 1px solid;
+  cursor: pointer; transition: all 0.1s;
+}
+.dbg-badge.off { border-color: var(--border2); color: var(--text-dim); }
+.dbg-badge.on  { border-color: var(--green);   color: var(--green);
+                  background: rgba(0,230,118,0.08); animation: dbg-pulse 2s infinite; }
+@keyframes dbg-pulse {
+  0%,100% { box-shadow: none; }
+  50%      { box-shadow: 0 0 6px rgba(0,230,118,0.4); }
+}
+
+/* Status strip */
+.cs-strip {
+  display:flex; align-items:center; gap:10px; padding:4px 12px;
+  border-top:1px solid var(--border); background:var(--panel); flex-shrink:0;
+  font-family:var(--font-mono); font-size:9px; color:var(--text-dim);
+}
+.cs-dot { width:7px; height:7px; border-radius:50%; background:var(--border2); flex-shrink:0; }
+.cs-dot.ok   { background:var(--green);  box-shadow:0 0 5px var(--green); }
+.cs-dot.err  { background:var(--red);    box-shadow:0 0 5px var(--red);   }
+.cs-dot.warn { background:var(--yellow); box-shadow:0 0 5px var(--yellow); }
+.cs-ok   { color:var(--green); }
+.cs-err  { color:var(--red); }
+.cs-warn { color:var(--yellow); }
+
+@media (max-width:780px) {
+  .ld-right { display:none; }
+  .ld-palette { width:90px; }
+  .pal-lbl, .pal-sub, .pal-kbd { display:none; }
+  .pal-sym { min-width:100%; }
+}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-title">Ladder PRO — LD</div>
+  <div class="topbar-spacer"></div>
+  <div id="mode-badge" class="mode-badge stop">STOP</div>
+  <div class="topbar-sep"></div>
+  <button class="ctrl-btn run"  onclick="plcRun()">&#x25BA; RUN</button>
+  <button class="ctrl-btn stop" onclick="plcStop()">&#x25A0; STOP</button>
+  <div class="topbar-sep"></div>
+  <button class="ctrl-btn save" onclick="compileAndSend()">&#x2B06; COMPILE</button>
+  <button class="ctrl-btn"      onclick="validateAll()">&#x2713; VALIDATE</button>
+  <button class="ctrl-btn"      onclick="saveDraft()">&#x1F4BE; DRAFT</button>
+  <button class="ctrl-btn"      onclick="clearAll()">&#x2715; NEW</button>
+  <div class="topbar-sep"></div>
+  <button class="ctrl-btn"      onclick="exportJSON()">&#x2913; JSON</button>
+  <input type="file" id="imp-file" accept=".json" style="display:none" onchange="importJSON(this)">
+  <button class="ctrl-btn"      onclick="document.getElementById('imp-file').click()">&#x2912; IMPORT</button>
+  <div class="topbar-sep"></div>
+  <a href="index.html"><button class="ctrl-btn">&#x2302; HOME</button></a>
+</div>
+
+<!-- LAYOUT -->
+<div class="ld-layout">
+
+  <!-- PALETTE -->
+  <div class="ld-palette">
+    <div class="pal-section">
+      <div class="pal-stitle">Contacts</div>
+      <div class="pal-item" id="pal-NO" onclick="selectTool('NO',this)" draggable="true" ondragstart="palDrag(event,'NO')">
+        <span class="pal-sym">&#x2524; &#x251C;</span>
+        <div><div class="pal-lbl">Normally Open</div><div class="pal-sub">NO / N.O.</div></div>
+        <span class="pal-kbd">1</span>
+      </div>
+      <div class="pal-item" id="pal-NC" onclick="selectTool('NC',this)" draggable="true" ondragstart="palDrag(event,'NC')">
+        <span class="pal-sym">&#x2524;/&#x251C;</span>
+        <div><div class="pal-lbl">Normally Closed</div><div class="pal-sub">NC / N.C.</div></div>
+        <span class="pal-kbd">2</span>
+      </div>
+    </div>
+    <div class="pal-section">
+      <div class="pal-stitle">Coils</div>
+      <div class="pal-item" id="pal-COIL" onclick="selectTool('COIL',this)" draggable="true" ondragstart="palDrag(event,'COIL')">
+        <span class="pal-sym">( )</span>
+        <div><div class="pal-lbl">Output Coil</div><div class="pal-sub">Normal</div></div>
+        <span class="pal-kbd">3</span>
+      </div>
+      <div class="pal-item" id="pal-SET" onclick="selectTool('SET',this)" draggable="true" ondragstart="palDrag(event,'SET')">
+        <span class="pal-sym">(S)</span>
+        <div><div class="pal-lbl">Set Coil</div><div class="pal-sub">Latch ON</div></div>
+        <span class="pal-kbd">4</span>
+      </div>
+      <div class="pal-item" id="pal-RST" onclick="selectTool('RESET',this)" draggable="true" ondragstart="palDrag(event,'RESET')">
+        <span class="pal-sym">(R)</span>
+        <div><div class="pal-lbl">Reset Coil</div><div class="pal-sub">Latch OFF</div></div>
+        <span class="pal-kbd">5</span>
+      </div>
+    </div>
+    <div class="pal-section">
+      <div class="pal-stitle">Timers</div>
+      <div class="pal-item" id="pal-TON" onclick="selectTool('TON',this)" draggable="true" ondragstart="palDrag(event,'TON')">
+        <span class="pal-sym" style="font-size:10px">TON</span>
+        <div><div class="pal-lbl">Timer ON</div><div class="pal-blk">Delay ON</div></div>
+        <span class="pal-kbd">6</span>
+      </div>
+      <div class="pal-item" id="pal-TOF" onclick="selectTool('TOF',this)" draggable="true" ondragstart="palDrag(event,'TOF')">
+        <span class="pal-sym" style="font-size:10px">TOF</span>
+        <div><div class="pal-lbl">Timer OFF</div><div class="pal-blk">Delay OFF</div></div>
+        <span class="pal-kbd">7</span>
+      </div>
+    </div>
+    <div class="pal-section">
+      <div class="pal-stitle">Counters</div>
+      <div class="pal-item" id="pal-CTU" onclick="selectTool('CTU',this)" draggable="true" ondragstart="palDrag(event,'CTU')">
+        <span class="pal-sym" style="font-size:10px">CTU</span>
+        <div><div class="pal-lbl">Count Up</div><div class="pal-blk">Counter ↑</div></div>
+        <span class="pal-kbd">8</span>
+      </div>
+      <div class="pal-item" id="pal-CTD" onclick="selectTool('CTD',this)" draggable="true" ondragstart="palDrag(event,'CTD')">
+        <span class="pal-sym" style="font-size:10px">CTD</span>
+        <div><div class="pal-lbl">Count Down</div><div class="pal-blk">Counter ↓</div></div>
+        <span class="pal-kbd">9</span>
+      </div>
+    </div>
+    <div class="pal-section">
+      <div class="pal-stitle">Addresses</div>
+      <div class="pal-addrs">
+        <span style="color:var(--accent2)">X</span>0-X7 Inputs<br>
+        <span style="color:var(--accent)">Y</span>0-Y7 Outputs<br>
+        <span style="color:#3ab4f2">M</span>0-M15 Markers<br>
+        <span style="color:var(--yellow)">T</span>0-T7 Timers<br>
+        <span style="color:var(--green)">C</span>0-C7 Counters
+      </div>
+    </div>
+    <div class="pal-section" style="margin-top:auto">
+      <div class="pal-item" style="cursor:pointer" onclick="addRung()">
+        <span class="pal-sym">+</span>
+        <div><div class="pal-lbl">Add Rung</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="ld-canvas" id="ld-canvas">
+    <div class="ld-canvas-inner">
+      <div class="ld-rail-wrap">
+        <div class="rail-L"><span class="rail-lbl">L+</span></div>
+        <div class="rungs-list" id="rungs-list"></div>
+        <div class="rail-R"><span class="rail-lbl">N</span></div>
+      </div>
+      <div class="add-rung-row">
+        <button class="add-rung-btn" onclick="addRung()">+ ADD RUNG</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="ld-right">
+    <div class="ld-right-hdr">PLC Memory</div>
+    <div class="ld-right-body" id="mem-mount"></div>
+    <div class="ast-pane">
+      <div class="ast-phdr">AST &mdash; Selected Rung</div>
+      <div id="ast-preview" class="ast-expr" style="color:var(--text-dim);font-size:7px;">Select a rung.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- COMPILE STATUS -->
+<div class="cs-strip">
+  <div class="cs-dot" id="cs-dot"></div>
+  <span id="cs-msg">Ready</span>
+  <span style="flex:1"></span>
+  <span id="dbg-badge" class="dbg-badge off" onclick="toggleDebug()" title="Toggle live debug highlight">DEBUG</span>
+  <span id="cs-nc" style="color:var(--border2)"></span>
+  <span style="color:var(--border2)">PLC-CORE-MDE &middot; Ladder PRO v2</span>
+</div>
+
+<!-- STATUSBAR (global) -->
+<div class="statusbar">
+  <span id="sb-time">--:--:--</span>
+  <span id="sb-status">Ladder PRO &middot; Ready</span>
+</div>
+
+<!-- MODAL -->
+<div class="modal-bg" id="elem-modal">
+  <div class="modal-box">
+    <div class="modal-ttl" id="mdl-title">Element</div>
+    <label class="modal-lbl" id="mdl-lbl">Address</label>
+    <input class="modal-inp" id="mdl-addr" type="text" placeholder="X0" maxlength="8" autocomplete="off">
+    <div class="modal-hint" id="mdl-hint">X=input | Y=output | M=marker | T=timer</div>
+    <div id="mdl-mode-sec" style="display:none">
+      <label class="modal-lbl" style="margin-bottom:5px">Coil Mode</label>
+      <div class="mode-row">
+        <div class="mode-opt sel" id="mode-NORMAL" onclick="selMode('NORMAL')">NORMAL<br><small>( )</small></div>
+        <div class="mode-opt"    id="mode-SET"    onclick="selMode('SET')">SET<br><small>(S)</small></div>
+        <div class="mode-opt"    id="mode-RESET"  onclick="selMode('RESET')">RESET<br><small>(R)</small></div>
+      </div>
+    </div>
+    <div class="modal-row">
+      <button class="btn-cnl" onclick="closeModal()">Cancel</button>
+      <button class="btn-ok"  onclick="confirmModal()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- BLOCK MODAL -->
+<div class="modal-bg" id="blk-modal">
+  <div class="modal-box">
+    <div class="modal-ttl" id="blk-modal-title">TON</div>
+    <div class="blk-modal-row">
+      <div class="blk-modal-col">
+        <label class="modal-lbl">Block ID (e.g. T0, C1)</label>
+        <input class="modal-inp" id="blk-modal-id" type="text" placeholder="T0" maxlength="6" autocomplete="off">
+      </div>
+      <div class="blk-modal-col">
+        <label class="modal-lbl" id="blk-modal-preset-lbl">Preset (ms)</label>
+        <input class="modal-inp" id="blk-modal-preset" type="number" placeholder="1000" min="0" style="width:100%">
+      </div>
+    </div>
+    <div class="modal-hint">T=timer (TON/TOF)  C=counter (CTU/CTD)</div>
+    <div class="modal-row">
+      <button class="btn-cnl" onclick="closeBlockModal()">Cancel</button>
+      <button class="btn-ok"  onclick="confirmBlockModal()">OK</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   LADDER EDITOR PRO — Core Logic
+   ================================================================
+   DATA MODEL (paths format — new):
+     rungs[] = [rung, ...]
+     rung = {
+       id:       string (unique),
+       comment:  string,
+       paths:    [ [elem,...], ... ],   // parallel rows (OR'd)
+       outputs:  [ coil, ... ]
+     }
+     elem = { type:'CONTACT', var:'X0', negated:bool }
+     coil = { type:'COIL', var:'Y0', mode:'NORMAL'|'SET'|'RESET' }
+
+   BACKWARD COMPAT: legacyToPaths() from ladder_ast.js handles old format.
+   ================================================================ */
+'use strict';
+
+var rungs = [];
+var selTool = 'NO';
+var selRungId = null;
+var _uid = 1;
+var _ctx = null;     // modal context
+var _coilMode = 'NORMAL';
+
+function uid(){ return 'r'+(_uid++); }
+
+/* ── Rung factory ─────────────────────────────────────────── */
+function mkRung(cmt){
+  return { id:uid(), comment:cmt||'', paths:[[]], outputs:[] };
+}
+
+/* ── Default rung: one NO contact + one NORMAL coil ─────────── *
+ *  Used when no saved program exists, so the editor starts in   *
+ *  a valid, error-free state rather than showing blank rungs.   */
+function createDefaultRung(){
+  return {
+    id:      uid(),
+    comment: '',
+    paths:   [ [ { type:'CONTACT', var:'X0', negated:false } ] ],
+    outputs: [ { type:'COIL', var:'Y0', mode:'NORMAL' } ]
+  };
+}
+
+/* ── Tool selection ────────────────────────────────────────── */
+function selectTool(t, el){
+  selTool = t;
+  document.querySelectorAll('.pal-item').forEach(function(e){ e.classList.remove('active'); });
+  if(el) el.classList.add('active');
+  setStatus('Tool: '+t);
+}
+selectTool('NO', document.getElementById('pal-NO'));
+
+/* ── Keyboard shortcuts ────────────────────────────────────── */
+document.addEventListener('keydown', function(e){
+  if(e.target.tagName==='INPUT') return;
+  var m={'1':'NO','2':'NC','3':'COIL','4':'SET','5':'RESET','6':'TON','7':'TOF','8':'CTU','9':'CTD'};
+  var p={'NO':'pal-NO','NC':'pal-NC','COIL':'pal-COIL','SET':'pal-SET','RESET':'pal-RST',
+         'TON':'pal-TON','TOF':'pal-TOF','CTU':'pal-CTU','CTD':'pal-CTD'};
+  if(m[e.key]){ selectTool(m[e.key], document.getElementById(p[m[e.key]])); e.preventDefault(); }
+  if(e.key==='Escape') closeModal();
+  if(e.key==='Delete' && selRungId && !_ctx) deleteRung(selRungId);
+});
+
+/* ================================================================ RUNG CRUD ================================================================ */
+function addRung(afterId){
+  var r=mkRung();
+  if(afterId){
+    var i=rungs.findIndex(function(x){return x.id===afterId;});
+    rungs.splice(i>=0?i+1:rungs.length,0,r);
+  } else rungs.push(r);
+  renderAll(); selRung(r.id);
+  setStatus('Rung '+(rungs.length)+' added');
+}
+
+function deleteRung(id){
+  if(rungs.length<=1 && !confirm('Delete last rung?')) return;
+  rungs=rungs.filter(function(r){return r.id!==id;});
+  if(selRungId===id) selRungId=null;
+  renderAll();
+  setStatus('Rung deleted');
+}
+
+function moveRung(id,dir){
+  var i=rungs.findIndex(function(r){return r.id===id;}); if(i<0) return;
+  var j=i+dir; if(j<0||j>=rungs.length) return;
+  var t=rungs[i]; rungs[i]=rungs[j]; rungs[j]=t; renderAll();
+}
+
+function selRung(id){
+  selRungId=id;
+  document.querySelectorAll('.rung').forEach(function(el){
+    el.classList.toggle('sel', el.dataset.rungId===id);
+  });
+  updateAST(id);
+}
+
+function getRung(id){ return rungs.find(function(r){return r.id===id;})||null; }
+
+/* ================================================================ PATH / ELEMENT CRUD ================================================================ */
+function addPath(rid){
+  var r=getRung(rid); if(!r) return;
+  r.paths.push([]); renderAll(); setStatus('Parallel branch added');
+}
+
+function delPath(rid,pi){
+  var r=getRung(rid); if(!r||r.paths.length<=1) return;
+  r.paths.splice(pi,1); renderAll();
+}
+
+function setElem(rid,pi,ci,elem){
+  var r=getRung(rid); if(!r) return;
+  var p=r.paths[pi]; if(!p) return;
+  while(p.length<=ci) p.push(null);
+  p[ci]=elem;
+  while(p.length>0&&p[p.length-1]===null) p.pop();
+  renderAll(); updateAST(rid);
+}
+
+function delElem(rid,pi,ci){
+  var r=getRung(rid); if(!r) return;
+  var p=r.paths[pi]; if(!p) return;
+  p.splice(ci,1); renderAll(); updateAST(rid);
+}
+
+function addCoil(rid,coil){
+  var r=getRung(rid); if(!r) return;
+  r.outputs.push(coil); renderAll(); updateAST(rid);
+}
+
+function delCoil(rid,ci){
+  var r=getRung(rid); if(!r) return;
+  r.outputs.splice(ci,1); renderAll(); updateAST(rid);
+}
+
+/* ================================================================ VALIDATION ================================================================ */
+function validateAll(){
+  var tot=0;
+  rungs.forEach(function(r){
+    tot += LadderAST.validateRung(r).length;
+  });
+  renderAll();
+  if(tot===0){ setStatus('All '+rungs.length+' rung(s) valid'); csStatus('ok','All rungs valid'); }
+  else       { setStatus(tot+' error(s) found');               csStatus('err',tot+' error(s)'); }
+}
+
+/* ================================================================ RENDER ================================================================ */
+function renderAll(){
+  var c=document.getElementById('rungs-list'); c.innerHTML='';
+  rungs.forEach(function(rung,ri){ c.appendChild(mkRungEl(rung,ri)); });
+  updateAST(selRungId);
+}
+
+function mkRungEl(rung,ri){
+  var errs=LadderAST.validateRung(rung);
+  var div=document.createElement('div');
+  div.className='rung'+(rung.id===selRungId?' sel':'')+(errs.length?' has-err':'');
+  div.dataset.rungId=rung.id;
+  div.onclick=function(e){
+    if(e.target.closest('button')||e.target.closest('.cell')||e.target.closest('.coil-cell')) return;
+    selRung(rung.id);
+  };
+
+  /* drag rung reorder */
+  div.draggable=true;
+  div.ondragstart=function(e){ e.dataTransfer.setData('rung-id',rung.id); e.dataTransfer.effectAllowed='move'; };
+  div.ondragover =function(e){ e.preventDefault(); div.classList.add('drag-ov'); };
+  div.ondragleave=function(){  div.classList.remove('drag-ov'); };
+  div.ondrop=function(e){
+    e.preventDefault(); div.classList.remove('drag-ov');
+    var sid=e.dataTransfer.getData('rung-id');
+    if(sid&&sid!==rung.id){
+      var si=rungs.findIndex(function(r){return r.id===sid;});
+      var di=rungs.findIndex(function(r){return r.id===rung.id;});
+      if(si>=0&&di>=0){ var tmp=rungs.splice(si,1)[0]; rungs.splice(di,0,tmp); renderAll(); }
+    }
+  };
+
+  /* rung number */
+  var num=document.createElement('div'); num.className='rung-num';
+  num.textContent=String(ri+1).padStart(2,'0'); div.appendChild(num);
+
+  /* comment */
+  div.appendChild(mkCmtEl(rung));
+
+  /* body row = paths + coil zone + ctrl */
+  var brow=document.createElement('div'); brow.style.cssText='display:flex;align-items:stretch;';
+  brow.appendChild(mkBodyEl(rung));
+  brow.appendChild(mkCoilZone(rung));
+  brow.appendChild(mkRungCtrl(rung));
+  div.appendChild(brow);
+
+  /* errors */
+  if(errs.length){
+    var ed=document.createElement('div'); ed.className='rung-errs';
+    errs.forEach(function(e){
+      var el=document.createElement('div'); el.className='err-line'; el.textContent='! '+e; ed.appendChild(el);
+    });
+    div.appendChild(ed);
+  }
+  return div;
+}
+
+function mkCmtEl(rung){
+  var div=document.createElement('div');
+  div.className='rung-cmt'+(rung.comment?'':' empty');
+  var sp=document.createElement('span'); sp.className='cmt-span'; sp.textContent=rung.comment||'';
+  var inp=document.createElement('input'); inp.type='text'; inp.value=rung.comment||''; inp.placeholder='add comment...'; inp.maxLength=80;
+  div.appendChild(sp); div.appendChild(inp);
+  div.onclick=function(){ div.classList.add('editing'); div.classList.remove('empty'); inp.focus(); inp.select(); };
+  inp.onblur=function(){
+    rung.comment=inp.value.trim(); sp.textContent=rung.comment;
+    div.classList.remove('editing');
+    if(!rung.comment) div.classList.add('empty'); else div.classList.remove('empty');
+  };
+  inp.onkeydown=function(e){ if(e.key==='Enter'||e.key==='Escape') inp.blur(); e.stopPropagation(); };
+  return div;
+}
+
+function mkBodyEl(rung){
+  var body=document.createElement('div'); body.className='rung-body';
+
+  rung.paths.forEach(function(path,pi){
+    var row=document.createElement('div');
+    row.className='rung-row'+(pi>0?' parallel':'');
+    row.dataset.rungId  = rung.id;   // for updateVisualState() targeting
+    row.dataset.pathIdx = pi;
+
+    // Animated flow particle — moved by CSS when .energized is toggled
+    var flowEl=document.createElement('div'); flowEl.className='wire-flow';
+    row.appendChild(flowEl);
+
+    var cz=document.createElement('div'); cz.className='cell-zone';
+
+    path.forEach(function(elem,ci){
+      if(elem){
+        if(elem.type==='BLOCK'){
+          cz.appendChild(mkBlockCell(rung.id,pi,ci,elem));
+        } else {
+          cz.appendChild(mkContactCell(rung.id,pi,ci,elem));
+        }
+      }
+    });
+    cz.appendChild(mkEmptyCell(rung.id,pi,path.length));
+
+    row.appendChild(cz);
+
+    /* branch bar for rows beyond first */
+    if(pi>0||rung.paths.length>1){
+      var bb=document.createElement('div'); bb.className='branch-bar';
+      var lbl=document.createElement('span'); lbl.className='branch-lbl'; lbl.textContent='Branch '+(pi+1);
+      var db=document.createElement('button'); db.className='branch-btn branch-del'; db.textContent='x Remove';
+      (function(rId,pIdx){ db.onclick=function(e){ e.stopPropagation(); delPath(rId,pIdx); }; })(rung.id,pi);
+      bb.appendChild(lbl); bb.appendChild(db); row.appendChild(bb);
+    }
+
+    body.appendChild(row);
+  });
+
+  /* add branch button */
+  var abr=document.createElement('div'); abr.style.cssText='padding:2px 8px 4px;';
+  var abb=document.createElement('button'); abb.className='branch-btn';
+  abb.textContent='|| Add parallel branch (OR)';
+  (function(rid){ abb.onclick=function(e){ e.stopPropagation(); addPath(rid); }; })(rung.id);
+  abr.appendChild(abb); body.appendChild(abr);
+
+  return body;
+}
+
+/* ── Block cell renderer (TON, TOF, CTU, CTD, etc.) ─────────
+   elem = { type:'BLOCK', blockType:'TON'|'TOF'|'CTU'|'CTD',
+            id:'T0', preset:1000 }
+   The block renders as an IEC-style box with IN/PT on the left
+   and Q/ET on the right, inline in the path.
+   The power-rail wire passes through the cell (::before/::after
+   pseudo-elements add connector stubs in CSS).                  */
+function mkBlockCell(rId, pi, ci, elem){
+  var div=document.createElement('div');
+  div.className='cell blk';
+  div.title=elem.blockType+' '+elem.id;
+  div.dataset.blockId=elem.id;         // used by updateVisualState()
+  div.dataset.blockType=elem.blockType;
+
+  // Title bar
+  var title=document.createElement('div');
+  title.className='blk-title';
+  title.textContent=elem.blockType;
+  div.appendChild(title);
+
+  // Body: left ports | right ports
+  var body=document.createElement('div'); body.className='blk-body';
+
+  // Left ports — block type determines port names
+  var portDefs=_blockPortDefs(elem.blockType);
+  var lCol=document.createElement('div'); lCol.className='blk-ports-l';
+  portDefs.left.forEach(function(p){
+    var pEl=document.createElement('div');
+    pEl.className='blk-port'+(p.main?' main':'');
+    pEl.textContent=p.name+(p.value!==undefined?'\n'+p.value:'');
+    lCol.appendChild(pEl);
+  });
+
+  var rCol=document.createElement('div'); rCol.className='blk-ports-r';
+  portDefs.right.forEach(function(p){
+    var pEl=document.createElement('div');
+    pEl.className='blk-port'+(p.main?' main':'');
+    pEl.textContent=p.name;
+    rCol.appendChild(pEl);
+  });
+
+  body.appendChild(lCol); body.appendChild(rCol);
+  div.appendChild(body);
+
+  // Block ID + preset label
+  var idEl=document.createElement('div'); idEl.className='blk-id';
+  idEl.textContent=elem.id+(elem.preset?'\n'+elem.preset+(elem.blockType.startsWith('C')?'':' ms'):'');
+  div.appendChild(idEl);
+
+  // Live value display (CV for counters, ET for timers) — updated by updateVisualState()
+  var liveEl=document.createElement('div'); liveEl.className='blk-live';
+  liveEl.textContent='';   // populated by debug poll when active
+  div.appendChild(liveEl);
+
+  // Delete button
+  var del=document.createElement('div'); del.className='c-del'; del.textContent='x';
+  del.title='Delete';
+  (function(a,b,c){ del.onclick=function(e){ e.stopPropagation(); delElem(a,b,c); }; })(rId,pi,ci);
+  div.appendChild(del);
+
+  // Click to edit block parameters
+  (function(a,b,c,el){
+    div.onclick=function(e){ if(e.target===del) return; openBlockModal(a,b,c,el); };
+  })(rId,pi,ci,elem);
+
+  // Drag
+  div.draggable=true;
+  div.ondragstart=function(e){
+    e.dataTransfer.setData('cell-src',JSON.stringify({rId:rId,pi:pi,ci:ci,elem:elem}));
+    e.dataTransfer.effectAllowed='move';
+  };
+  return div;
+}
+
+/* Port definitions per block type — returns { left:[{name,main,value?}], right:[...] } */
+function _blockPortDefs(blockType){
+  switch(blockType){
+    case 'TON': case 'TOF': case 'TP':
+      return { left: [{name:'IN',main:true},{name:'PT',main:false}],
+               right:[{name:'Q',main:true},{name:'ET',main:false}] };
+    case 'CTU':
+      return { left: [{name:'CU',main:true},{name:'R',main:false},{name:'PV',main:false}],
+               right:[{name:'Q',main:true},{name:'CV',main:false}] };
+    case 'CTD':
+      return { left: [{name:'CD',main:true},{name:'LD',main:false},{name:'PV',main:false}],
+               right:[{name:'Q',main:true},{name:'CV',main:false}] };
+    default:
+      return { left:[{name:'IN',main:true}], right:[{name:'Q',main:true}] };
+  }
+}
+
+function mkContactCell(rId,pi,ci,elem){
+  var nc=(elem.negated===true);
+  var div=document.createElement('div');
+  div.className='cell '+(nc?'nc':'no');
+  div.title=(nc?'NC':'NO')+' '+elem.var;
+  div.dataset.var=elem.var;   // used by updateVisualState()
+
+  var sym=document.createElement('div'); sym.className='c-sym'; sym.textContent=nc?'|/|':'| |';
+  var addr=document.createElement('div'); addr.className='c-addr'; addr.textContent=elem.var||'?';
+  var typ=document.createElement('div');  typ.className='c-type'; typ.textContent=nc?'NC':'NO';
+  var del=document.createElement('div');  del.className='c-del'; del.textContent='x';
+  del.title='Delete';
+  (function(a,b,c){ del.onclick=function(e){ e.stopPropagation(); delElem(a,b,c); }; })(rId,pi,ci);
+
+  div.appendChild(sym); div.appendChild(addr); div.appendChild(typ); div.appendChild(del);
+
+  /* click to edit */
+  (function(a,b,c,el){ div.onclick=function(e){ if(e.target===del) return; openContModal(a,b,c,el); }; })(rId,pi,ci,elem);
+
+  /* drag cell */
+  div.draggable=true;
+  div.ondragstart=function(e){
+    e.dataTransfer.setData('cell-src',JSON.stringify({rId:rId,pi:pi,ci:ci,elem:elem}));
+    e.dataTransfer.effectAllowed='move';
+  };
+  return div;
+}
+
+function mkEmptyCell(rId,pi,ci){
+  var div=document.createElement('div'); div.className='cell empty';
+  div.title='Click to insert, or drag from palette';
+  var ph=document.createElement('div');
+  ph.style.cssText='font-family:var(--font-mono);font-size:12px;color:var(--border2);';
+  ph.textContent='+'; div.appendChild(ph);
+
+  div.onclick=function(){
+    if(selTool==='COIL'||selTool==='SET'||selTool==='RESET'){ openCoilModal(rId,null,null); }
+    else if(_isBlockTool(selTool)){ openBlockModal(rId,pi,ci,null); }
+    else openContModal(rId,pi,ci,null);
+  };
+
+  div.ondragover =function(e){ e.preventDefault(); div.classList.add('drop-tgt'); };
+  div.ondragleave=function(){  div.classList.remove('drop-tgt'); };
+  div.ondrop=function(e){
+    e.preventDefault(); div.classList.remove('drop-tgt');
+    var pt=e.dataTransfer.getData('pal-type');
+    var cs=e.dataTransfer.getData('cell-src');
+    if(pt){
+      var prev=selTool; selTool=pt;
+      if(_isBlockTool(pt)) openBlockModal(rId,pi,ci,null);
+      else openContModal(rId,pi,ci,null);
+      selTool=prev;
+    } else if(cs){
+      var src=JSON.parse(cs);
+      var elem=src.elem;
+      delElem(src.rId,src.pi,src.ci);
+      setTimeout(function(){ setElem(rId,pi,ci,elem); },0);
+    }
+  };
+  return div;
+}
+
+function mkCoilZone(rung){
+  var div=document.createElement('div'); div.className='coil-zone';
+
+  rung.outputs.forEach(function(coil,ci){
+    var cc=document.createElement('div');
+    cc.className='coil-cell'+(coil.mode==='SET'?' set-c':coil.mode==='RESET'?' rst-c':'');
+    cc.title=coil.mode+' '+coil.var;
+    cc.dataset.var=coil.var;   // used by updateVisualState()
+
+    var syms={NORMAL:'( )',SET:'(S)',RESET:'(R)'};
+    var sym=document.createElement('div');  sym.className='co-sym';  sym.textContent=syms[coil.mode]||'( )';
+    var addr=document.createElement('div'); addr.className='co-addr'; addr.textContent=coil.var||'?';
+    var mode=document.createElement('div'); mode.className='co-mode'; mode.textContent=coil.mode||'NORMAL';
+    var del=document.createElement('div');  del.className='c-del';    del.textContent='x';
+    (function(rId,i){ del.onclick=function(e){ e.stopPropagation(); delCoil(rId,i); }; })(rung.id,ci);
+
+    cc.appendChild(sym); cc.appendChild(addr); cc.appendChild(mode); cc.appendChild(del);
+    (function(rId,c,i){ cc.onclick=function(e){ if(e.target===del) return; openCoilModal(rId,c,i); }; })(rung.id,coil,ci);
+    div.appendChild(cc);
+  });
+
+  var ab=document.createElement('button'); ab.className='add-coil-btn'; ab.textContent='+ coil';
+  (function(rId){ ab.onclick=function(e){ e.stopPropagation(); openCoilModal(rId,null,null); }; })(rung.id);
+  div.appendChild(ab);
+  return div;
+}
+
+function mkRungCtrl(rung){
+  var div=document.createElement('div'); div.className='rung-ctrl';
+  function btn(txt,ttl,cls,fn){
+    var b=document.createElement('button'); b.className='rctl-btn'+(cls?' '+cls:'');
+    b.textContent=txt; b.title=ttl;
+    b.onclick=function(e){ e.stopPropagation(); fn(); };
+    div.appendChild(b);
+  }
+  btn('^','Move up',  'mv',   function(){ moveRung(rung.id,-1); });
+  btn('v','Move down','mv',   function(){ moveRung(rung.id, 1); });
+  btn('+','Add after','',    function(){ addRung(rung.id); });
+  btn('x','Delete',  'dng',  function(){ deleteRung(rung.id); });
+  return div;
+}
+
+/* ================================================================ MODAL ================================================================ */
+
+/* Block tool check helper */
+function _isBlockTool(t){ return t==='TON'||t==='TOF'||t==='TP'||t==='CTU'||t==='CTD'; }
+
+function openContModal(rId,pi,ci,existing){
+  // If the selected tool is a block type, redirect to block modal
+  if(_isBlockTool(selTool) && !existing){ openBlockModal(rId,pi,ci,null); return; }
+  var nc=(selTool==='NC')||(existing&&existing.negated);
+  _ctx={ type:'contact', rId:rId, pi:pi, ci:ci, negated:nc };
+  document.getElementById('mdl-title').textContent=nc?'NC Contact':'NO Contact';
+  document.getElementById('mdl-lbl').textContent='Address (e.g. X0, M3, T0)';
+  document.getElementById('mdl-hint').textContent='X=input  Y=output  M=marker  T=timer  C=counter';
+  document.getElementById('mdl-mode-sec').style.display='none';
+  var inp=document.getElementById('mdl-addr');
+  inp.value=existing?(existing.var||''):'X0';
+  showModal();
+}
+
+/* Block modal — shared for TON/TOF/CTU/CTD */
+var _blockCtx=null;
+function openBlockModal(rId,pi,ci,existing){
+  var bt=existing?existing.blockType:selTool;
+  var defaultId={TON:'T0',TOF:'T1',TP:'T2',CTU:'C0',CTD:'C1'}[bt]||'T0';
+  var defaultPreset=bt.startsWith('C')?10:1000; // counters: count, timers: ms
+  _blockCtx={ rId:rId, pi:pi, ci:ci, blockType:bt };
+  document.getElementById('blk-modal-title').textContent=bt;
+  document.getElementById('blk-modal-id').value=existing?(existing.id||defaultId):defaultId;
+  document.getElementById('blk-modal-preset').value=existing?(existing.preset||defaultPreset):defaultPreset;
+  document.getElementById('blk-modal-preset-lbl').textContent=bt.startsWith('C')?'Preset (count)':'Preset (ms)';
+  document.getElementById('blk-modal').classList.add('show');
+  setTimeout(function(){ document.getElementById('blk-modal-id').focus(); document.getElementById('blk-modal-id').select(); },80);
+}
+
+function closeBlockModal(){
+  document.getElementById('blk-modal').classList.remove('show');
+  _blockCtx=null;
+}
+
+function confirmBlockModal(){
+  var id=document.getElementById('blk-modal-id').value.trim().toUpperCase();
+  var preset=parseInt(document.getElementById('blk-modal-preset').value,10)||0;
+  if(!id||!_blockCtx){ closeBlockModal(); return; }
+  // Validate: T for timer, C for counter
+  var bt=_blockCtx.blockType;
+  var expectedArea=bt.startsWith('C')?'C':'T';
+  if(!new RegExp('^'+expectedArea+'\\d+$').test(id)){
+    var inp=document.getElementById('blk-modal-id');
+    inp.style.borderColor='var(--red)';
+    setTimeout(function(){ inp.style.borderColor=''; },700);
+    return;
+  }
+  var ctx=_blockCtx; closeBlockModal();
+  var elem={ type:'BLOCK', blockType:bt, id:id, preset:preset };
+  setElem(ctx.rId,ctx.pi,ctx.ci,elem);
+  setStatus('Block '+bt+' '+id+' (preset='+preset+')');
+  updateAST(ctx.rId);
+}
+
+document.getElementById('blk-modal-id').addEventListener('keydown',function(e){
+  if(e.key==='Enter') confirmBlockModal();
+  if(e.key==='Escape') closeBlockModal();
+});
+function openCoilModal(rId,existing,ci){
+  _ctx={ type:'coil', rId:rId, ci:ci };
+  _coilMode=(existing&&existing.mode)||'NORMAL';
+  document.getElementById('mdl-title').textContent='Output Coil';
+  document.getElementById('mdl-lbl').textContent='Address (e.g. Y0, M3)';
+  document.getElementById('mdl-hint').textContent='Y=output  M=marker (SET/RESET latch)';
+  document.getElementById('mdl-mode-sec').style.display='block';
+  selMode(_coilMode);
+  var inp=document.getElementById('mdl-addr');
+  inp.value=existing?(existing.var||'Y0'):'Y0';
+  showModal();
+}
+
+function showModal(){
+  document.getElementById('elem-modal').classList.add('show');
+  var inp=document.getElementById('mdl-addr');
+  setTimeout(function(){ inp.focus(); inp.select(); },80);
+}
+
+function closeModal(){
+  document.getElementById('elem-modal').classList.remove('show'); _ctx=null;
+}
+
+function selMode(m){
+  _coilMode=m;
+  ['NORMAL','SET','RESET'].forEach(function(id){
+    document.getElementById('mode-'+id).classList.toggle('sel',id===m);
+  });
+}
+
+function confirmModal(){
+  var addr=document.getElementById('mdl-addr').value.trim().toUpperCase();
+  if(!addr||!_ctx){ closeModal(); return; }
+  if(!/^[XYMTC]\d+$/i.test(addr)){
+    var inp=document.getElementById('mdl-addr');
+    inp.style.borderColor='var(--red)';
+    setTimeout(function(){ inp.style.borderColor=''; },700);
+    return;
+  }
+  var ctx=_ctx; closeModal();
+  if(ctx.type==='contact'){
+    var nc=(selTool==='NC')||ctx.negated;
+    setElem(ctx.rId,ctx.pi,ctx.ci,{ type:'CONTACT', var:addr, negated:nc });
+    setStatus('Placed '+(nc?'NC':'NO')+' '+addr);
+  } else {
+    var coil={ type:'COIL', var:addr, mode:_coilMode };
+    if(ctx.ci!==null&&ctx.ci!==undefined){
+      var r=getRung(ctx.rId); if(r) r.outputs[ctx.ci]=coil; renderAll();
+    } else addCoil(ctx.rId,coil);
+    setStatus('Coil '+_coilMode+' '+addr);
+  }
+  updateAST(ctx.rId);
+}
+
+document.getElementById('mdl-addr').addEventListener('keydown',function(e){
+  if(e.key==='Enter') confirmModal();
+  if(e.key==='Escape') closeModal();
+});
+
+/* ================================================================ PALETTE DRAG ================================================================ */
+function palDrag(e,type){ e.dataTransfer.setData('pal-type',type); e.dataTransfer.effectAllowed='copy'; }
+
+/* ================================================================ AST PREVIEW ================================================================ */
+function updateAST(rid){
+  var el=document.getElementById('ast-preview');
+  if(!rid){ el.innerHTML='<span style="color:var(--text-dim)">Select a rung.</span>'; return; }
+  var r=getRung(rid); if(!r) return;
+  var errs=LadderAST.validateRung(r);
+  if(errs.length){
+    el.innerHTML='<span class="ast-err">! '+errs.length+' error(s)</span><br>'+
+      errs.map(function(e){ return '<span class="ast-err">'+e+'</span>'; }).join('<br>');
+    return;
+  }
+  var ast=LadderAST.rungToAST(r);
+  var expr=astStr(ast.expr);
+  var outs=ast.outputs.map(function(c){ return c.var+'['+c.mode+']'; }).join(', ');
+  el.innerHTML='<span class="ast-ok">Valid AST</span><br>'+
+    '<span style="color:var(--text-dim)">Expr: </span>'+expr+'<br>'+
+    '<span style="color:var(--text-dim)">Outs: </span><span style="color:var(--accent)">'+(outs||'none')+'</span>';
+}
+
+function astStr(n){
+  if(!n) return '0';
+  switch(n.op){
+    case 'VAR':  return '<span style="color:var(--text)">'+n.var+'</span>';
+    case 'NOT':  return '!(' +astStr(n.arg)+')';
+    case 'AND':  return '('+astStr(n.left)+' & '+astStr(n.right)+')';
+    case 'OR':   return '('+astStr(n.left)+' | '+astStr(n.right)+')';
+    case 'TRUE': return '<span style="color:var(--green)">1</span>';
+    case 'FALSE':return '<span style="color:var(--red)">0</span>';
+    case 'BLOCK':return '<span style="color:var(--accent2)">['+n.blockType+':'+n.var+']</span>';
+    default:     return n.op;
+  }
+}
+
+/* ================================================================ COMPILE & SEND ================================================================ */
+function compileAndSend(){
+  // ── Step 1: UI validation (LadderAST paths model) ─────────────
+  var allErrs=[];
+  rungs.forEach(function(r,ri){
+    LadderAST.validateRung(r).forEach(function(e){
+      allErrs.push('Rung '+(ri+1)+': '+e);
+    });
+  });
+  renderAll();
+  if(allErrs.length){
+    csStatus('err',allErrs.length+' error(s) — fix before compile');
+    setStatus(allErrs[0]);
+    return;
+  }
+
+  // ── Step 2: Choose compilation model ──────────────────────────
+  // When LadderProgram (ladder_program.js) is available AND the
+  // rungs can be converted to the AST model, use compileLadderAST.
+  // Otherwise fall back to the Bloque-3 compileLadder (paths model).
+  var ir;
+  var usedModel;
+
+  // Detect if any rung has BLOCK elements (TON/TOF/CTU/CTD).
+  // compileLadder (paths model) has full BLOCK support (wires IN/PT ports correctly).
+  // compileLadderAST only sees blocks as plain contacts — so for programs with blocks
+  // we route directly to compileLadder and skip the AST path.
+  var hasBlocks = rungs.some(function(rung) {
+    return (rung.paths || []).some(function(path) {
+      return (path || []).some(function(elem) { return elem && elem.type === 'BLOCK'; });
+    });
+  });
+
+  if (typeof LadderProgram !== 'undefined' && !hasBlocks) {
+    // ── AST model (Fase 1-6 ladder_program.js) — contact-only programs ──
+    try {
+      var astProgram = _rungs_to_ladder_ast(rungs);
+      ir = PlcCompiler.compileLadderAST(astProgram);
+      usedModel = 'ladder_ast';
+    } catch(e) {
+      console.warn('[compileAndSend] AST compile failed, falling back:', e.message);
+      ir = null;
+    }
+  }
+  if (hasBlocks) {
+    // Programs with function blocks always use the paths compiler (full BLOCK support)
+    console.info('[compileAndSend] Function blocks detected — using ladder_paths compiler');
+  }
+
+  if (!ir) {
+    // ── Bloque-3 paths model fallback ───────────────────────────
+    var ladderSrc = {
+      rungs: rungs.map(function(rung){
+        return { id:rung.id, comment:rung.comment||'', paths:rung.paths, outputs:rung.outputs };
+      })
+    };
+    try {
+      ir = PlcCompiler.compileLadder(ladderSrc);
+      usedModel = 'ladder_paths';
+    } catch(e) {
+      csStatus('err','Compile: '+e.message);
+      setStatus('Error: '+e.message);
+      return;
+    }
+  }
+
+  // ── Step 3: IR validation ──────────────────────────────────────
+  var validation = (typeof PlcSymbolTable !== 'undefined')
+    ? PlcSymbolTable.validate(ir.program.nodes)
+    : { ok:true, errors:[], warnings:[] };
+
+  if(!validation.ok){
+    var errMsg = validation.errors.map(function(e){ return e.code+': '+e.message; }).join('\n');
+    alert('Errores IR (guardar bloqueado):\n\n'+errMsg);
+    csStatus('err',validation.errors.length+' critical error(s)');
+    return;
+  }
+  if(validation.warnings.length > 0) console.warn('[compile] IR warnings:', validation.warnings);
+
+  // ── Step 4: Synthesise drawflow for the runtime ────────────────
+  var drawflowObj;
+  try {
+    drawflowObj = PlcCompiler.irToDrawflow(ir.program.nodes);
+  } catch(e) {
+    csStatus('err','Drawflow synthesis: '+e.message);
+    setStatus('Error: '+e.message);
+    return;
+  }
+
+  // ── Step 5: Build program envelope ────────────────────────────
+  var symbolTable = (ir.meta && ir.meta.symbolTable) || null;
+  var nc = ir.program.nodes.length;
+
+  // Keep the paths-format rungs in 'ladder' field for UI restore.
+  // If AST model was used, also store the AST program for future tools.
+  var ladderField = {
+    rungs: rungs.map(function(rung){
+      return { id:rung.id, comment:rung.comment||'', paths:rung.paths, outputs:rung.outputs };
+    })
+  };
+
+  // A4 FIX: hoist ir.order[] to envelope root so parseProgram() finds
+  // it at doc["order"] (it reads the flat JSON root, not doc["ir"]["order"]).
+  // Without this, hasIROrder=false and the runtime ignores the IR topology.
+  //
+  // NOTE ON drawflow FIELD:
+  // drawflowObj here comes from irToDrawflow() — it has id/name/data/outputs
+  // but lacks the 'class','html','typenode','inputs' fields that Drawflow.import()
+  // needs for the visual editor. This field is FOR THE ESP32 RUNTIME ONLY
+  // (parseProgram reads drawflow.Home.data).  The FBD editor (program.html)
+  // will detect source:'ladder' and skip import — no crash.
+  var envelope = {
+    format:       'plc_program',
+    version:      3,
+    source:       'ladder',
+    compiledWith: usedModel,
+    ladder:       ladderField,
+    ir:           ir,
+    order:        ir.order,            // ← hoisted for parseProgram()
+    drawflow:     drawflowObj.drawflow, // ← runtime only (ESP32 parseProgram)
+    symbolTable:  symbolTable
+  };
+
+  // ── Step 6: POST to /save, reload runtime ─────────────────────
+  setStatus('Compiled '+nc+' nodes ('+usedModel+') — sending...');
+  csStatus('warn','Sending...');
+
+  PlcApi.saveProgram(envelope)
+    .then(function(){ return PlcApi.plcReload(); })
+    .then(function(){
+      refreshBadge();
+      var symCount = symbolTable ? symbolTable.symbols.length : 0;
+      csStatus('ok',nc+' nodes | '+symCount+' symbols | '+usedModel);
+      setStatus('Loaded — '+nc+' nodes via '+usedModel);
+      document.getElementById('cs-nc').textContent=nc+' nodes';
+      flash();
+      try{ sessionStorage.setItem('ld_pro_v2',JSON.stringify(rungs)); }catch(e){}
+      if(symbolTable) console.info('[ladder] Symbol table:', symbolTable.stats);
+    })
+    .catch(function(e){
+      csStatus('err','Send: '+e.message);
+      setStatus('Error: '+e.message);
+    });
+}
+
+/* ── Convert paths/outputs rung model → LadderProgram AST ──────────
+   Translates the ladder.html internal rung model (paths format)
+   into the new LadderProgram AST format for compileLadderAST().
+   This is a pure data transformation — no IR is generated here.  */
+function _rungs_to_ladder_ast(rungs) {
+  var LP = LadderProgram;
+
+  function elemToExpr(elem) {
+    if (!elem) return null;
+    if (elem.type === 'CONTACT') {
+      return LP.contact(elem.var, elem.negated ? 'NC' : 'NO');
+    }
+    if (elem.type === 'BLOCK') {
+      // A BLOCK in a path conditions the rung — treat the block's Q output
+      // as a contact on its address variable (e.g. T0, C0).
+      // The block node itself is compiled by compileLadder() via the BLOCK branch.
+      // For compileLadderAST() we model it as a contact on the block's ID variable.
+      return LP.contact(elem.id, 'NO');
+    }
+    return null;
+  }
+
+  function pathToExpr(path) {
+    var terms = (path || []).map(elemToExpr).filter(Boolean);
+    if (terms.length === 0) return null;
+    if (terms.length === 1) return terms[0];
+    // Two-arg and() works; for N>2 pass array
+    return LP.and(terms);
+  }
+
+  function rungToASTRung(rung) {
+    var pathExprs = (rung.paths || [])
+      .map(pathToExpr)
+      .filter(Boolean);
+
+    if (pathExprs.length === 0) return null;
+
+    var condition;
+    if (pathExprs.length === 1) {
+      condition = pathExprs[0];
+    } else {
+      condition = LP.or(pathExprs);
+    }
+
+    var actions = (rung.outputs || []).map(function(coil) {
+      var type = 'coil';
+      if (coil.mode === 'SET')   type = 'set';
+      if (coil.mode === 'RESET') type = 'reset';
+      return LP.action(type, coil.var);
+    }).filter(Boolean);
+
+    if (actions.length === 0) return null;
+    return LP.makeRung(rung.id || String(Math.random()), condition, actions, {
+      label:   rung.comment || '',
+      comment: rung.comment || ''
+    });
+  }
+
+  var astRungs = rungs.map(rungToASTRung).filter(Boolean);
+  if (astRungs.length === 0) throw new Error('No valid rungs for AST conversion');
+  return LP.makeProgram(astRungs);
+}
+
+/* ================================================================ PLC + UI HELPERS ================================================================ */
+function plcRun()  { PlcApi.plcRun().then(refreshBadge); }
+function plcStop() { PlcApi.plcStop().then(refreshBadge); }
+
+function refreshBadge(){
+  PlcApi.getStatus().then(function(d){
+    var b=document.getElementById('mode-badge');
+    b.textContent=d.mode||'STOP';
+    b.className='mode-badge '+(d.mode==='RUN'?'run':'stop');
+  }).catch(function(){});
+}
+
+function setStatus(msg){ document.getElementById('sb-status').textContent=msg; }
+function csStatus(type,msg){
+  document.getElementById('cs-dot').className='cs-dot '+type;
+  var m=document.getElementById('cs-msg'); m.className='cs-'+type; m.textContent=msg;
+}
+function flash(){
+  var el=document.querySelector('.ctrl-btn.save'); if(!el) return;
+  el.style.boxShadow='0 0 18px rgba(245,166,35,0.55)';
+  setTimeout(function(){ el.style.boxShadow=''; },800);
+}
+
+/* ================================================================ IMPORT / EXPORT / DRAFT ================================================================ */
+function saveDraft(){
+  try{ sessionStorage.setItem('ld_pro_v2',JSON.stringify(rungs)); setStatus('Draft saved'); }
+  catch(e){ setStatus('Draft save failed'); }
+}
+
+function loadDraft(){
+  try{
+    var d=sessionStorage.getItem('ld_pro_v2');
+    if(d){
+      var parsed=JSON.parse(d);
+      rungs=parsed.map(function(r){
+        var m=LadderAST.legacyToPaths(r);
+        if(!m.id) m.id=uid();
+        if(!m.comment) m.comment='';
+        return m;
+      });
+      renderAll(); setStatus('Draft restored'); return true;
+    }
+  } catch(e){}
+  return false;
+}
+
+function clearAll(){
+  if(rungs.length&&!confirm('Clear all rungs?')) return;
+  rungs=[ createDefaultRung() ]; renderAll(); selRung(rungs[0].id); setStatus('Cleared — default rung created');
+}
+
+function exportJSON(){
+  var data=JSON.stringify({format:'ladder-pro',version:3,source:'ladder',rungs:rungs},null,2);
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));
+  a.download='ladder_program.json'; a.click();
+  setStatus('Exported ladder_program.json');
+}
+
+function importJSON(inp){
+  var f=inp.files[0]; if(!f) return;
+  var rd=new FileReader();
+  rd.onload=function(e){
+    try{
+      var data=JSON.parse(e.target.result);
+      var raw=data.rungs||(Array.isArray(data)?data:[]);
+      rungs=raw.map(function(r){
+        var m=LadderAST.legacyToPaths(r);
+        if(!m.id) m.id=uid();
+        if(!m.comment) m.comment='';
+        return m;
+      });
+      renderAll(); setStatus('Imported '+rungs.length+' rung(s)');
+    } catch(ex){ setStatus('Import error: '+ex.message); }
+    inp.value='';
+  };
+  rd.readAsText(f);
+}
+
+/* ================================================================ MEMORY PANEL + CLOCK ================================================================ */
+var _mp=new MemoryPanel(document.getElementById('mem-mount'),{
+  pollMs:300, xCount:8, yCount:8, mCount:8, tCount:4, aCount:2
+});
+_mp.start();
+
+setInterval(function(){
+  document.getElementById('sb-time').textContent=new Date().toLocaleTimeString();
+},1000);
+
+/* ================================================================
+   DEBUG VISUAL EN TIEMPO REAL
+   ================================================================
+   Fuente de datos:
+     /api/memory → { X:[64 bool], Y:[64 bool], T:[32 bool],
+                     C:[32 bool], R:[32 int], ... }
+     /nodes      → { nodes:[{id,name,state,intValue,value,...}] }
+
+   Mapeo:
+     Contacto  elem.var='X0' → X[0], 'Y1' → Y[1], 'M3' → M[3]
+     Bobina    coil.var='Y0' → Y[0], 'M0' → M[0]
+     TON/TOF   elem.id='T0'  → buscar en nodes[] por name+address
+     CTU/CTD   elem.id='C0'  → buscar en nodes[] por name+address
+
+   No re-renderiza el DOM. Solo togglea .dbg-on y actualiza .blk-live.
+   ================================================================ */
+
+var _debugActive = false;
+var _debugTimer  = null;
+var _DEBUG_POLL_MS = 500;
+
+// Cache de nodos runtime: { 'ton:T0': {Q,ET}, 'ctu:C0': {Q,CV} }
+var _nodeCache = {};
+
+function toggleDebug(){
+  _debugActive = !_debugActive;
+  var badge = document.getElementById('dbg-badge');
+  if (_debugActive) {
+    badge.textContent = 'DEBUG ON';
+    badge.className   = 'dbg-badge on';
+    _debugStartPolling();
+  } else {
+    badge.textContent = 'DEBUG';
+    badge.className   = 'dbg-badge off';
+    _debugStopPolling();
+    _debugClearAll();
+  }
+}
+
+function _debugStartPolling(){
+  if (_debugTimer) return;
+  _debugPoll();   // immediate first poll
+  _debugTimer = setInterval(_debugPoll, _DEBUG_POLL_MS);
+}
+
+function _debugStopPolling(){
+  if (_debugTimer){ clearInterval(_debugTimer); _debugTimer = null; }
+}
+
+/* Fetch both endpoints in parallel — fail silently if PLC is offline */
+function _debugPoll(){
+  if (!_debugActive) return;
+  Promise.all([
+    PlcApi.getMemory().catch(function(){ return null; }),
+    PlcApi.getNodes().catch(function(){ return null; })
+  ]).then(function(results){
+    var mem   = results[0];
+    var nodes = results[1];
+    if (!mem && !nodes) return;  // PLC offline
+
+    // Build block cache from /nodes response
+    _nodeCache = {};
+    if (nodes && Array.isArray(nodes.nodes)){
+      nodes.nodes.forEach(function(nd){
+        var key = nd.name + ':' + _nodeAddressStr(nd);
+        if (key !== ':') _nodeCache[key] = nd;
+      });
+    }
+
+    updateVisualState(mem, nodes);
+  });
+}
+
+/* Derive address string from a runtime node.
+   The address is embedded in the node's drawflow data as address:{area,index}.
+   /nodes doesn't return it directly, so we infer it from the node name + id.
+   For simple programs: first 'ton' → T0, second 'ton' → T1, etc.
+   We build an ordered map during _debugPoll.                              */
+var _nodeOrder = {};   // 'ton' → [nd, nd, ...] (ordered by first seen)
+
+function _nodeAddressStr(nd){
+  // /nodes doesn't return address directly — use counters per type
+  // This is approximate but correct for single-program sessions
+  // because parseProgram() builds nodes in stable order.
+  return '';   // key built differently — see _buildNodeMap
+}
+
+/* Build a more reliable map: nodeType → ordered list of nodes
+   First ton node → T0, second → T1, etc.
+   First ctu/ctd node → C0, second → C1, etc.                             */
+function _buildNodeMap(nodesList){
+  var map = {};   // 'ton:T0' → node, 'ctu:C0' → node, etc.
+  var counts = {};
+  var areaFor = { ton:'T', tof:'T', tp:'T', blink:'T', ctu:'C', ctd:'C' };
+  nodesList.forEach(function(nd){
+    var area = areaFor[nd.name];
+    if (!area) return;
+    counts[nd.name] = (counts[nd.name] || 0);
+    var addr = area + counts[nd.name];
+    counts[nd.name]++;
+    map[nd.name + ':' + addr] = nd;
+  });
+  return map;
+}
+
+/* ── Core update function — NO DOM recreation ─────────────────
+   mem:   /api/memory response { X, Y, M, T, C, R, A }
+   nodes: /nodes response      { nodes:[...] }             */
+function updateVisualState(mem, nodesResp){
+  if (!_debugActive) return;
+
+  var nodeMap = {};
+  if (nodesResp && Array.isArray(nodesResp.nodes)){
+    nodeMap = _buildNodeMap(nodesResp.nodes);
+  }
+
+  // ── Contacts: .cell[data-var] ─────────────────────────────
+  document.querySelectorAll('.cell[data-var]').forEach(function(el){
+    var v    = el.dataset.var;           // 'X0', 'Y1', 'M3', 'T0', 'C0'
+    var on   = _varState(v, mem);
+    el.classList.toggle('dbg-on', on);
+  });
+
+  // ── Coils: .coil-cell[data-var] ───────────────────────────
+  document.querySelectorAll('.coil-cell[data-var]').forEach(function(el){
+    var v  = el.dataset.var;
+    var on = _varState(v, mem);
+    el.classList.toggle('dbg-on', on);
+  });
+
+  // ── Blocks: .cell.blk[data-block-id] ──────────────────────
+  document.querySelectorAll('.cell.blk[data-block-id]').forEach(function(el){
+    var blockId   = el.dataset.blockId;    // 'T0', 'C0'
+    var blockType = (el.dataset.blockType || '').toLowerCase();
+    var liveEl    = el.querySelector('.blk-live');
+
+    // Determine IEC type key for nodeMap lookup
+    var typeKey = blockType;   // 'ton', 'tof', 'ctu', 'ctd'
+    var nd = nodeMap[typeKey + ':' + blockId];
+
+    var qOn   = false;
+    var liveText = '';
+
+    if (nd) {
+      qOn = !!nd.state;   // Q output
+
+      // Live value display
+      // CTU/CTD: CV = nd.intValue (runtime stores it there), PV = nd.value (preset)
+      // TON/TOF/TP: ET = mem.R[nd.id % 32] (runtime stores elapsed ms there)
+      if (blockType === 'ctu' || blockType === 'ctd') {
+        var cv = nd.intValue || 0;
+        var pv = nd.value || nd.preset || 0;
+        liveText = 'CV:' + cv + (pv ? '/' + pv : '');
+      } else if (blockType === 'ton' || blockType === 'tof' || blockType === 'tp') {
+        var ridx = nd.id % 32;
+        var et = (mem && mem.R && ridx < mem.R.length) ? (mem.R[ridx] || 0) : 0;
+        liveText = (nd.timerRunning ? '▶ ' : '') + 'ET:' + et + 'ms';
+      }
+    } else {
+      // Fallback: use /api/memory T/C arrays
+      liveText = '';
+      var area  = blockId.charAt(0).toUpperCase();   // 'T' or 'C'
+      var idx   = parseInt(blockId.slice(1), 10) || 0;
+      if (mem) {
+        if (area === 'T' && mem.T) qOn = !!mem.T[idx];
+        if (area === 'C' && mem.C) qOn = !!mem.C[idx];
+      }
+    }
+
+    el.classList.toggle('dbg-on', qOn);
+    if (liveEl) liveEl.textContent = liveText;
+  });
+
+  // ── Wire energization: .rung-row[data-rung-id][data-path-idx] ──
+  // A path is energized when ALL its contacts/blocks evaluate TRUE.
+  // We look up the rung from rungs[] by rungId, then evaluate path[pathIdx].
+
+  document.querySelectorAll('.rung-row[data-rung-id]').forEach(function(row){
+    var rungId  = row.dataset.rungId;
+    var pathIdx = parseInt(row.dataset.pathIdx, 10) || 0;
+
+    var rung = getRung(rungId);
+    if (!rung) { row.classList.remove('energized'); return; }
+
+    var path = (rung.paths || [])[pathIdx];
+    var elems = path || [];
+
+    // Empty path → not energized
+    if (elems.length === 0) { row.classList.remove('energized'); return; }
+
+    // Evaluate every element in the path
+    var on = elems.every(function(elem){
+      if (!elem) return false;
+      if (elem.type === 'CONTACT') {
+        var raw = _varState(elem.var, mem);
+        // NC contact: energized when var is FALSE
+        return elem.negated ? !raw : raw;
+      }
+      if (elem.type === 'BLOCK') {
+        // Block is energized when its Q output is TRUE
+        var bt  = (elem.blockType || '').toLowerCase();
+        var nd2 = nodeMap[bt + ':' + elem.id];
+        if (nd2) return !!nd2.state;
+        // Fallback via memory arrays
+        var a2  = elem.id.charAt(0).toUpperCase();
+        var i2  = parseInt(elem.id.slice(1), 10) || 0;
+        if (a2 === 'T' && mem && mem.T) return !!mem.T[i2];
+        if (a2 === 'C' && mem && mem.C) return !!mem.C[i2];
+        return false;
+      }
+      return false;
+    });
+
+    row.classList.toggle('energized', on);
+  });
+
+  // ── Rail L energization: active when at least one output coil var is ON ──
+  // Use actual coil output state (Y/M vars), not path energization,
+  // so the rail reflects real hardware output, not just logic conditions.
+  var anyCoilOn = false;
+  document.querySelectorAll('.coil-cell[data-var]').forEach(function(el){
+    if (_varState(el.dataset.var, mem)) anyCoilOn = true;
+  });
+  var railL = document.querySelector('.rail-L');
+  if (railL) railL.classList.toggle('energized', anyCoilOn);
+}
+
+/* Resolve a variable name to its boolean state from /api/memory.
+   Supports: X0-X63, Y0-Y63, M0-M63, T0-T31, C0-C31            */
+function _varState(varName, mem){
+  if (!mem || !varName) return false;
+  var m = /^([XYMTCxymtc])(\d+)$/.exec(varName);
+  if (!m) return false;
+  var area  = m[1].toUpperCase();
+  var index = parseInt(m[2], 10);
+  var arr   = mem[area];
+  if (!arr || index >= arr.length) return false;
+  return !!arr[index];
+}
+
+/* Clear all debug highlight without re-rendering */
+function _debugClearAll(){
+  document.querySelectorAll('.dbg-on').forEach(function(el){
+    el.classList.remove('dbg-on');
+  });
+  document.querySelectorAll('.blk-live').forEach(function(el){
+    el.textContent = '';
+  });
+  // Clear wire and rail energization
+  document.querySelectorAll('.energized').forEach(function(el){
+    el.classList.remove('energized');
+  });
+}
+
+/* ================================================================ INIT ================================================================ */
+
+/* ── createDefaultRung is defined near mkRung above ─────────── */
+
+/* ── Safe ladder initialiser ─────────────────────────────────── *
+ *  Accepts a raw program object (from /load or any source),     *
+ *  migrates it through legacyToPaths, assigns ids, and renders. *
+ *  Never throws — always falls back to a valid default rung.    */
+function initLadder(program){
+  try {
+    var rawRungs = null;
+
+    // ── Shape 1: v3 Ladder envelope { source:'ladder', ladder:{rungs:[...]} }
+    if (program && program.source === 'ladder' && program.ladder && Array.isArray(program.ladder.rungs)) {
+      rawRungs = program.ladder.rungs;
+      console.info('[Ladder] Restored from v3 Ladder envelope');
+
+    // ── Shape 2: Ladder envelope without source field { ladder:{rungs:[...]} }
+    } else if (program && program.ladder && Array.isArray(program.ladder.rungs)) {
+      rawRungs = program.ladder.rungs;
+
+    // ── Shape 3: bare rungs array { rungs:[...] }
+    } else if (program && Array.isArray(program.rungs)) {
+      rawRungs = program.rungs;
+
+    // ── Shape 4: raw array
+    } else if (Array.isArray(program)) {
+      rawRungs = program;
+
+    // ── Shape 5 (A3 FIX): FBD envelope or any envelope with ir field
+    // program.fbd  → FBD envelope (version:2, source undefined)
+    // program.ir   → any envelope that has a compiled IR
+    // Strategy: run analyzeIR → if convertible → decompileIRToLadder
+    //           if not convertible → warn + default rung
+    } else if (program && program.ir && program.ir.program && program.ir.program.nodes) {
+      var irSrc = program.ir;
+      var srcLabel = (program.source === 'fbd' || program.fbd) ? 'FBD' : 'IR';
+      console.info('[Ladder] Detected ' + srcLabel + ' envelope — attempting IR→Ladder decompilation');
+
+      if (typeof LadderDecompiler === 'undefined') {
+        // Decompiler not loaded — should not happen after A1/A2 fix, but guard anyway
+        console.error('[Ladder] LadderDecompiler not available — cannot decompile ' + srcLabel);
+        csStatus('warn', srcLabel + ' loaded — Ladder view unavailable (decompiler missing)');
+        setStatus('Open a Ladder program to edit, or compile from scratch.');
+        rungs = [ createDefaultRung() ];
+        renderAll();
+        return;
+      }
+
+      // Step 1: analyze convertibility
+      var analysis = LadderDecompiler.analyzeIR(irSrc);
+      console.info('[Ladder] analyzeIR result:', analysis);
+
+      if (!analysis.convertible) {
+        // Level 3 — non-convertible nodes present (PWM, SCALE, ANALOG, cycles)
+        var warnMsg = srcLabel + ' program is not convertible to Ladder (level 3).';
+        console.warn('[Ladder] ' + warnMsg, analysis.warnings);
+        csStatus('warn', srcLabel + ' program — not convertible to Ladder');
+        setStatus(warnMsg + ' See console for details.');
+        // Show warnings in AST preview panel
+        var astEl = document.getElementById('ast-preview');
+        if (astEl) {
+          astEl.innerHTML = '<span style="color:var(--yellow)">⚠ ' + srcLabel + ' not convertible</span><br>' +
+            analysis.warnings.slice(0,4).map(function(w){
+              return '<span style="color:var(--text-dim);font-size:7px">' + w + '</span>';
+            }).join('<br>');
+        }
+        rungs = [ createDefaultRung() ];
+        renderAll();
+        return;
+      }
+
+      // Step 2: decompile IR → rungs en formato paths (directo para el editor)
+      // decompileIRToLadder retorna { rungs:[...paths format...], analysis }
+      // o null si la conversión falla internamente.
+      var decompResult = LadderDecompiler.decompileIRToLadder(irSrc);
+      console.info('[Ladder] decompileIRToLadder result:', decompResult);
+
+      if (!decompResult || !Array.isArray(decompResult.rungs) || decompResult.rungs.length === 0) {
+        console.warn('[Ladder] Decompiler returned empty result');
+        csStatus('warn', srcLabel + ' decompiled — no rungs generated');
+        setStatus('Decompilation produced no rungs. Starting blank.');
+        rungs = [ createDefaultRung() ];
+        renderAll();
+        return;
+      }
+
+      // Step 3: cargar rungs en el editor (ya están en paths format)
+      rawRungs = decompResult.rungs;
+
+      if (rawRungs.length > 0) {
+        rungs = rawRungs;
+        renderAll();
+        var lvlMsg = analysis.level === 2 ? ' (some nodes approximated)' : '';
+        csStatus('ok', srcLabel + ' decompiled — ' + rungs.length + ' rung(s)' + lvlMsg);
+        setStatus(srcLabel + ' program decompiled to Ladder — ' + rungs.length + ' rung(s)' + lvlMsg);
+        if (analysis.warnings.length > 0) {
+          console.warn('[Ladder] Decompiler warnings:', analysis.warnings);
+        }
+        return;
+      }
+    }
+
+    // ── Common path: rawRungs found via shapes 1-4
+    if (rawRungs && rawRungs.length > 0) {
+      rungs = rawRungs.map(function(r){
+        var m = LadderAST.legacyToPaths(r);
+        if (!m.id)      m.id      = uid();
+        if (!m.comment) m.comment = '';
+        if (!Array.isArray(m.paths))   m.paths   = [[]];
+        if (!Array.isArray(m.outputs)) m.outputs = [];
+        return m;
+      });
+      renderAll();
+      setStatus('Program loaded — ' + rungs.length + ' rung(s)');
+      csStatus('ok', rungs.length + ' rung(s) loaded');
+      return;
+    }
+  } catch(e) {
+    console.error('LADDER INIT ERROR:', e);
+    csStatus('err', 'Init error — ' + e.message);
+  }
+
+  // Nothing usable — start with a clean default rung
+  console.warn('No ladder program found — starting with default rung');
+  rungs = [ createDefaultRung() ];
+  renderAll();
+  setStatus('New program — default rung created');
+  csStatus('ok', 'Ready');
+}
+
+/* ── _ladderASTRungToPaths(astRung) ──────────────────────────────
+   Converts one LadderProgram AST rung (from decompileIRToLadder)
+   into the paths/outputs format used by the ladder.html editor.
+
+   AST rung: { id, condition: ExprNode, actions: ActionNode[], meta }
+   ExprNode: { type:'contact', var, mode } |
+             { type:'edge', var, edge } |
+             { type:'not', child } |
+             { type:'and', children } |
+             { type:'or',  children }
+   ActionNode: { type:'coil'|'set'|'reset', target }
+
+   Strategy: flatten the AST condition into parallel paths (OR of ANDs).
+   Each OR branch becomes a path row; each AND branch becomes contacts.
+   Handles the SOP form that decompileIRToLadder produces.           */
+function _ladderASTRungToPaths(astRung) {
+  if (!astRung || !astRung.condition || !Array.isArray(astRung.actions)) return null;
+
+  function exprToPaths(node) {
+    // Returns: [ path, path, ... ] where path = [ elem, ... ]
+    if (!node) return [];
+
+    if (node.type === 'contact') {
+      var elem = { type: 'CONTACT', var: node.var, negated: node.mode === 'NC' };
+      return [ [elem] ];
+    }
+
+    if (node.type === 'edge') {
+      // Edge detection: represent as a contact on the signal variable
+      // (the edge semantics are in the IR; in the Ladder editor it shows as contact)
+      var edgeElem = { type: 'CONTACT', var: node.var, negated: false };
+      return [ [edgeElem] ];
+    }
+
+    if (node.type === 'not') {
+      // NOT over a contact → NC contact
+      if (node.child && node.child.type === 'contact') {
+        return [ [{ type: 'CONTACT', var: node.child.var, negated: true }] ];
+      }
+      // NOT over something else — represent as NC on a generic var (lossy but safe)
+      var inner = exprToPaths(node.child);
+      if (inner.length > 0 && inner[0].length > 0) {
+        var firstElem = inner[0][0];
+        return [ [{ type: 'CONTACT', var: firstElem.var || 'M0', negated: !firstElem.negated }] ];
+      }
+      return [];
+    }
+
+    if (node.type === 'and') {
+      // AND → single path with all contacts in series
+      var seriesElems = [];
+      (node.children || []).forEach(function(child) {
+        var childPaths = exprToPaths(child);
+        if (childPaths.length > 0) {
+          childPaths[0].forEach(function(e) { seriesElems.push(e); });
+        }
+      });
+      return seriesElems.length > 0 ? [seriesElems] : [];
+    }
+
+    if (node.type === 'or') {
+      // OR → multiple parallel paths
+      var orPaths = [];
+      (node.children || []).forEach(function(child) {
+        exprToPaths(child).forEach(function(p) { orPaths.push(p); });
+      });
+      return orPaths;
+    }
+
+    if (node.type === 'block') {
+      // Decompiled block node (TON/TOF/CTU/CTD) — reconstruct BLOCK element
+      var blockTypeMap = { TON:'TON', TOF:'TOF', TP:'TP', CTU:'CTU', CTD:'CTD' };
+      var bt = blockTypeMap[node.blockType] || 'TON';
+      return [ [{ type:'BLOCK', blockType:bt, id:node.addr||'T0', preset:node.preset||0 }] ];
+    }
+
+    return [];
+  }
+
+  var paths = exprToPaths(astRung.condition);
+  if (paths.length === 0) paths = [[]];
+
+  var outputs = (astRung.actions || []).map(function(act) {
+    var mode = 'NORMAL';
+    if (act.type === 'set')   mode = 'SET';
+    if (act.type === 'reset') mode = 'RESET';
+    return { type: 'COIL', var: act.target, mode: mode };
+  });
+
+  return {
+    id:      astRung.id || uid(),
+    comment: (astRung.meta && astRung.meta.comment) || '',
+    paths:   paths,
+    outputs: outputs
+  };
+}
+
+/* ── Load saved program from ESP32 /load endpoint ────────────── *
+ *  Returns the parsed JSON or null on any failure.              */
+function loadProgram(){
+  return fetch('/load')
+    .then(function(r){
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(function(raw){
+      if (!raw || raw.trim() === '') {
+        console.warn('[Ladder] /load returned empty response');
+        return null;
+      }
+      var parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch(e) {
+        console.error('[Ladder] Invalid JSON from /load:', e.message);
+        console.error('[Ladder] Raw (first 200):', raw.substring(0, 200));
+        return null;
+      }
+      console.log('[Ladder] Program loaded:', raw.length, 'bytes, format:', parsed.format || '(none)');
+      return parsed;
+    })
+    .catch(function(e){
+      console.warn('[Ladder] Could not fetch /load:', e.message);
+      return null;
+    });
+}
+
+/* ── Startup sequence ────────────────────────────────────────── *
+ *  Priority:                                                     *
+ *    1. Saved program on ESP32  (/load)                         *
+ *    2. Session draft           (sessionStorage)                 *
+ *    3. Default rung            (createDefaultRung)             */
+refreshBadge();
+
+(function startup(){
+  // 1. Try session draft first (instant, no network)
+  var hasDraft = false;
+  try {
+    var d = sessionStorage.getItem('ld_pro_v2');
+    if (d) {
+      var parsed = JSON.parse(d);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        rungs = parsed.map(function(r){
+          var m = LadderAST.legacyToPaths(r);
+          if (!m.id)      m.id      = uid();
+          if (!m.comment) m.comment = '';
+          if (!Array.isArray(m.paths))   m.paths   = [[]];
+          if (!Array.isArray(m.outputs)) m.outputs = [];
+          return m;
+        });
+        hasDraft = true;
+      }
+    }
+  } catch(e) { console.warn('Draft parse error:', e); }
+
+  if (hasDraft) {
+    renderAll();
+    setStatus('Draft restored — ' + rungs.length + ' rung(s)');
+    csStatus('ok', 'Draft restored');
+    return;
+  }
+
+  // 2. Try loading from ESP32 SPIFFS
+  csStatus('warn', 'Loading program...');
+  loadProgram().then(function(program){
+    // /load returns {} when file is missing — treat that as empty
+    var isEmpty = !program || (typeof program === 'object' && Object.keys(program).length === 0);
+    if (isEmpty) {
+      initLadder(null);
+    } else {
+      initLadder(program);
+    }
+  });
+})();
+</script>
+<div class="license-footer">
+  PLC-CORE-MDE © 2026 Martín Entraigas – MDE Electrónica  
+  Uso no comercial únicamente.  
+  <a href="LICENSE.txt" target="_blank">Ver licencia completa</a>
+</div>
+<style>
+.license-footer {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: 0.7;
+  margin-top: 24px;
+  margin-bottom: 8px;
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+}
+.license-footer a {
+  color: var(--accent2);
+  text-decoration: none;
+}
+.license-footer a:hover {
+  text-decoration: underline;
+}
+</style>
+</body>
+</html>

@@ -339,7 +339,31 @@ window.addEventListener('scroll', () => {
   });
 });
 </script>
-<!-- PLC-CORE-MDE License Overlay -->
-<div style="position:fixed;bottom:0;left:0;width:100%;font-size:11px;color:#888;text-align:center;pointer-events:none;z-index:9999;">PLC-CORE-MDE &copy; 2026 Mart&iacute;n Entraigas / PLC-CORE-MDE &mdash; Licensed under PLC-CORE-MDE License v1.0 &mdash; Commercial use requires authorization</div>
+<div class="license-footer">
+  PLC-CORE-MDE © 2026 Martín Entraigas – MDE Electrónica  
+  Uso no comercial únicamente.  
+  <a href="LICENSE.txt" target="_blank">Ver licencia completa</a>
+</div>
+<style>
+.license-footer {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: 0.7;
+  margin-top: 24px;
+  margin-bottom: 8px;
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+}
+.license-footer a {
+  color: var(--accent2);
+  text-decoration: none;
+}
+.license-footer a:hover {
+  text-decoration: underline;
+}
+</style>
 </body>
 </html>
