@@ -1,123 +1,52 @@
 // =============================================================
 // PLC-CORE-MDE Project
 // Copyright (c) 2026 Martín Entraigas / PLC-CORE-MDE
-// Argentina
-// Licensed under PLC-CORE-MDE License v1.0
-// Educational use allowed
-// Commercial use requires authorization
-// =============================================================
-
-// =============================================================
-// plc_sim_io.js — PLC-CORE-MDE Cloud Simulator
-// IO Abstraction Layer
+// plc_sim_io.js — v2 (IR-based simulator)
 //
-// Mirrors the physical IO API from plc_io.h:
-//   plcReadInput(), plcWriteOutput(), plcReadAnalog(), plcWritePWM()
-//
-// This file implements the SIMULATOR mode only.
-// Future modes (LOCAL, USB, MODBUS_GATEWAY, TCP) should be added
-// here as additional backends without changing the API surface.
-//
-// IO Backend interface:
-//   readInput(n)       → bool
-//   readAnalog(n)      → int 0-4095
-//   writeOutput(n, v)  → void
-//   writePWM(idx, v)   → void  (v: 0-4095)
+// FUENTE DE VERDAD: plc_io.h / plc_io.cpp
+// Implementa la capa IO del simulador.
+// Expone exactamente la misma API que el firmware:
+//   plcReadInput(n)     → bool
+//   plcWriteOutput(n,v) → void
+//   plcReadAnalog(n)    → int 0-4095
+//   plcWritePWM(idx,v)  → void
+//   plcRegisterPWM(idx) → void (no-op en sim)
+//   plcMarkPinAsPWM(idx)→ void (no-op en sim)
 // =============================================================
 
 'use strict';
 
 // =============================================================
-// IO Backend Registry
-// Add new backends here without touching the runtime.
-// =============================================================
-const IO_BACKENDS = {};
-
-// ---- SIMULATOR backend (runs in browser, no hardware) -------
-IO_BACKENDS.SIMULATOR = {
-  name: 'SIMULATOR',
-
-  readInput(n) {
-    return SimState.inputs[n] === true;
-  },
-
-  readAnalog(n) {
-    return (SimState.analog[n] !== undefined) ? SimState.analog[n] : 0;
-  },
-
-  writeOutput(n, val) {
-    if (n >= 0 && n < SimState.outputs.length) {
-      SimState.outputs[n] = !!val;
-    }
-  },
-
-  writePWM(outIdx, value) {
-    if (outIdx >= 0 && outIdx < SimState.pwmValues.length) {
-      SimState.pwmValues[outIdx] = value;
-      // Also reflect on digital output if value > 2048
-      SimState.outputs[outIdx] = (value > 2048);
-    }
-  },
-
-  registerPWM(outIdx) {
-    // No hardware setup needed in simulator
-  },
-
-  markPinAsPWM(outIdx) {
-    // No-op in simulator
-  },
-};
-
-// ---- FUTURE: LOCAL backend (WebSerial / native ESP32) --------
-// IO_BACKENDS.LOCAL = { ... };
-
-// ---- FUTURE: TCP backend (WebSocket to ESP32) ----------------
-// IO_BACKENDS.TCP = { ... };
-
-// ---- FUTURE: USB backend (WebUSB serial) ---------------------
-// IO_BACKENDS.USB = { ... };
-
-// ---- FUTURE: MODBUS_GATEWAY backend --------------------------
-// IO_BACKENDS.MODBUS_GATEWAY = { ... };
-
-// =============================================================
-// Active backend — switch here to change mode
-// =============================================================
-let _activeBackend = IO_BACKENDS.SIMULATOR;
-
-function setIOBackend(name) {
-  if (IO_BACKENDS[name]) {
-    _activeBackend = IO_BACKENDS[name];
-    console.log('[IO] Backend set to:', name);
-  } else {
-    console.warn('[IO] Unknown backend:', name);
-  }
-}
-
-// =============================================================
-// Public API — mirrors plc_io.h exactly
+// IO Backend — SIMULATOR (reads/writes SimState directly)
 // =============================================================
 
 function plcReadInput(n) {
-  return _activeBackend.readInput(n);
+  return SimState.inputs[n] === true;
 }
 
 function plcReadAnalog(n) {
-  return _activeBackend.readAnalog(n);
+  const v = SimState.analog[n];
+  return (v !== undefined) ? v : 0;
 }
 
 function plcWriteOutput(n, val) {
-  _activeBackend.writeOutput(n, val);
+  if (n >= 0 && n < SimState.outputs.length) {
+    SimState.outputs[n] = !!val;
+  }
 }
 
 function plcWritePWM(outIdx, value) {
-  _activeBackend.writePWM(outIdx, value);
+  if (outIdx >= 0 && outIdx < SimState.pwmValues.length) {
+    SimState.pwmValues[outIdx] = value;
+    // Mirror threshold onto digital output (mirrors firmware behaviour)
+    SimState.outputs[outIdx] = (value > 2048);
+  }
 }
 
-function plcRegisterPWM(outIdx) {
-  _activeBackend.registerPWM(outIdx);
+function plcRegisterPWM(/*outIdx*/) {
+  // No-op in simulator — no hardware pin setup required
 }
 
-function plcMarkPinAsPWM(outIdx) {
-  _activeBackend.markPinAsPWM(outIdx);
+function plcMarkPinAsPWM(/*outIdx*/) {
+  // No-op in simulator
 }

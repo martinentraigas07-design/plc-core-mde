@@ -1,241 +1,270 @@
 // =============================================================
 // PLC-CORE-MDE Project
 // Copyright (c) 2026 Martín Entraigas / PLC-CORE-MDE
-// Argentina
-// Licensed under PLC-CORE-MDE License v1.0
-// Educational use allowed
-// Commercial use requires authorization
-// =============================================================
-
-// =============================================================
-// plc_sim_modbus.js — PLC-CORE-MDE Cloud Simulator
-// Simulates RS485 Modbus RTU master behaviour
+// simulator/plc_sim_modbus.js — Módulos RS485 para simulador
 //
-// Mirrors plc_modbus.cpp:
-//   modbusInit()
-//   modbusStartDiscovery()
-//   modbusRegisterSlave(addr, type, label)
-//   modbusPoll()         — called from scan loop
+// FUENTE DE VERDAD: plc_modbus.h / plc_modbus.cpp / plc_memory.cpp
 //
-// In simulator mode: all IO values are random/simulated.
-// Remote DI values toggle slowly; AI values drift; DO can be
-// written and read back; AO holds last written value.
+// NO implementa protocolo Modbus RTU.
+// NO simula RS485 físico.
+// SÍ replica:
+//   - Estructura de datos ModbusSlave
+//   - Tablas rdi/rdo/rai/rao (mirrors exactos del firmware)
+//   - Algoritmo de offsets acumulativos (mirrors modbusRegisterSlave)
+//   - Mapeo rdi→X[8+], rai→A[4+], Y[8+]→rdo (mirrors readInputs/writeOutputs)
+//   - Tipos de módulo (mirrors enum ModuleType)
+//   - Respuestas de endpoints /modbus/status y /modbus/discover
+//
+// Carga: <script src="simulator/plc_sim_modbus.js"></script>
+// Debe cargarse DESPUÉS de plc_sim_state.js y ANTES de plc_sim_runtime.js
 // =============================================================
 
-'use strict';
-
-// Default simulated slave templates for auto-discovery
-// When SCAN RS485 is pressed, these are returned as if discovered
-const SIM_DISCOVERY_TEMPLATES = [
-  { address: 1, type: ModuleType.WS_RELAY8  },
-  { address: 2, type: ModuleType.WS_IO8     },
-  { address: 3, type: ModuleType.WS_AI8     },
-  { address: 4, type: ModuleType.MDE_MIXED  },
-];
-
-// Internal: simulated IO data per slave (separate from global tables)
-const _simSlaveIO = {}; // keyed by address
-
-let _discoveryTimer = null;
-
 // =============================================================
-// modbusInit — mirrors void modbusInit()
+// Tipos de módulo — mirrors enum ModuleType de plc_modbus.h
+// Incluye número de canales DI/DO/AI/AO por tipo.
 // =============================================================
-function modbusInit() {
-  SimState.mbSlaves      = [];
-  SimState.mbSlaveCount  = 0;
-  SimState.mbDiscoveryDone = false;
-  console.log('[MODBUS] Sim init');
+const SIM_MODULE_DEFS = {
+  MOD_WS_RELAY8:  { id: 1,  name: 'WS-RELAY8',  di: 0, do: 8,  ai: 0, ao: 0 },
+  MOD_WS_RELAY16: { id: 2,  name: 'WS-RELAY16', di: 0, do: 16, ai: 0, ao: 0 },
+  MOD_WS_IO8:     { id: 3,  name: 'WS-IO8',     di: 8, do: 8,  ai: 0, ao: 0 },
+  MOD_WS_AI8:     { id: 4,  name: 'WS-AI8',     di: 0, do: 0,  ai: 8, ao: 0 },
+  MOD_WS_AO8:     { id: 5,  name: 'WS-AO8',     di: 0, do: 0,  ai: 0, ao: 8 },
+  MOD_MDE_DI16:   { id: 16, name: 'MDE-DI16',   di: 16, do: 0, ai: 0, ao: 0 },
+  MOD_MDE_DO16:   { id: 17, name: 'MDE-DO16',   di: 0, do: 16, ai: 0, ao: 0 },
+  MOD_MDE_AI8:    { id: 18, name: 'MDE-AI8',    di: 0, do: 0,  ai: 8, ao: 0 },
+  MOD_MDE_AO8:    { id: 19, name: 'MDE-AO8',    di: 0, do: 0,  ai: 0, ao: 8 },
+  MOD_MDE_MIXED:  { id: 48, name: 'MDE-MIXED',  di: 8, do: 8,  ai: 4, ao: 4 },
+};
+
+// Lookup por id numérico (para serialización/deserialización)
+function _simModuleDefById(id) {
+  for (const key of Object.keys(SIM_MODULE_DEFS)) {
+    if (SIM_MODULE_DEFS[key].id === id) return { key, ...SIM_MODULE_DEFS[key] };
+  }
+  return null;
 }
 
 // =============================================================
-// modbusRegisterSlave — mirrors void modbusRegisterSlave(...)
-// Adds a slave to the table and assigns IO offsets
+// Inicialización de tablas Modbus en SimState
+// Llamada una vez al cargar este archivo.
+// Extiende SimState con los campos necesarios para Modbus.
+// mirrors: variables globales rdi/rdo/rai/rao y mbSlaves[] en plc_modbus.cpp
 // =============================================================
-function modbusRegisterSlave(address, type, label) {
-  if (SimState.mbSlaveCount >= 16) return;
+(function initSimModbus() {
+  // Tablas IO remotas — mirrors exactos de plc_modbus.cpp globals
+  if (!SimState.rdi)          SimState.rdi = new Array(64).fill(false);  // Remote Digital Inputs
+  if (!SimState.rdo)          SimState.rdo = new Array(64).fill(false);  // Remote Digital Outputs
+  if (!SimState.rai)          SimState.rai = new Array(32).fill(0);      // Remote Analog Inputs
+  if (!SimState.rao)          SimState.rao = new Array(32).fill(0);      // Remote Analog Outputs
 
-  const info = ModuleInfo[type] || { name:'UNKNOWN', di:0, do:0, ai:0, ao:0 };
+  // Tabla de módulos — mirrors mbSlaves[MODBUS_MAX_SLAVES] + mbSlaveCount
+  if (!SimState.mbSlaves)       SimState.mbSlaves = [];
+  if (!SimState.mbSlaveCount)   SimState.mbSlaveCount = 0;
+  if (SimState.mbDiscoveryDone === undefined) SimState.mbDiscoveryDone = false;
+})();
 
-  // Calculate IO offsets (pack sequentially)
-  let rdiOff = 0, rdoOff = 0, raiOff = 0, raoOff = 0;
-  for (const s of SimState.mbSlaves) {
-    rdiOff += s.numDI;
-    rdoOff += s.numDO;
-    raiOff += s.numAI;
-    raoOff += s.numAO;
-  }
-
-  const slave = makeModbusSlave({
-    address,
-    type,
-    typeName: info.name,
-    online:     true,
+// =============================================================
+// makeSimModbusSlave — factory
+// mirrors: struct ModbusSlave en plc_modbus.h
+// =============================================================
+function makeSimModbusSlave(overrides) {
+  return Object.assign({
+    address:    1,        // Modbus address (1–247)
+    type:       0,        // ModuleType numeric id
+    typeName:   'UNKNOWN',
+    typeKey:    '',       // SIM_MODULE_DEFS key
+    online:     true,     // always online in sim (no RS485 to fail)
     discovered: true,
-    rdiOff,
-    rdoOff,
-    raiOff,
-    raoOff,
-    numDI: info.di,
-    numDO: info.do,
-    numAI: info.ai,
-    numAO: info.ao,
+    rdiOff: 0, rdoOff: 0, raiOff: 0, raoOff: 0,
+    numDI: 0,  numDO: 0,  numAI: 0,  numAO: 0,
     pollCount:  0,
     errorCount: 0,
-    label: label || `${info.name}@${String(address).padStart(2,'0')}`,
+    label:      '',
+  }, overrides);
+}
+
+// =============================================================
+// simRegisterModule — mirrors modbusRegisterSlave()
+//
+// Assigns cumulative offsets into rdi/rdo/rai/rao tables,
+// exactly as the firmware does in modbusRegisterSlave().
+// Order of registration determines the offset mapping.
+// =============================================================
+function simRegisterModule(address, typeKey, labelOverride) {
+  const def = SIM_MODULE_DEFS[typeKey];
+  if (!def) {
+    console.warn('[SIM-Modbus] Tipo desconocido:', typeKey);
+    return null;
+  }
+
+  // Prevent duplicate addresses (mirrors firmware guard)
+  for (const s of SimState.mbSlaves) {
+    if (s.address === address) {
+      console.warn('[SIM-Modbus] Dirección ya registrada:', address);
+      return s;
+    }
+  }
+
+  // Calculate cumulative offsets — mirrors firmware algorithm in modbusRegisterSlave()
+  let diOff = 0, doOff = 0, aiOff = 0, aoOff = 0;
+  for (const s of SimState.mbSlaves) {
+    diOff += s.numDI;
+    doOff += s.numDO;
+    aiOff += s.numAI;
+    aoOff += s.numAO;
+  }
+
+  const label = labelOverride || `${def.name}@${String(address).padStart(2, '0')}`;
+
+  const slave = makeSimModbusSlave({
+    address,
+    type:     def.id,
+    typeName: def.name,
+    typeKey,
+    numDI: def.di, numDO: def.do, numAI: def.ai, numAO: def.ao,
+    rdiOff: diOff, rdoOff: doOff, raiOff: aiOff, raoOff: aoOff,
+    label,
+    online:     true,
+    discovered: true,
   });
 
   SimState.mbSlaves.push(slave);
-  SimState.mbSlaveCount++;
+  SimState.mbSlaveCount = SimState.mbSlaves.length;
+  // Mark discovery done so /modbus/status returns modules immediately
+  // (no need to press Discover after manually adding a module)
+  SimState.mbDiscoveryDone = true;
 
-  // Initialise simulated local IO for this slave
-  _simSlaveIO[address] = {
-    di: new Array(info.di).fill(false),
-    do: new Array(info.do).fill(false),
-    ai: new Array(info.ai).fill(0),
-    ao: new Array(info.ao).fill(0),
-    diPhase: new Array(info.di).fill(0),
-    aiDrift: new Array(info.ai).fill(0),
-  };
+  console.log(
+    `[SIM-Modbus] Registrado: ${label} ` +
+    `DI=${def.di} DO=${def.do} AI=${def.ai} AO=${def.ao} ` +
+    `rdiOff=${diOff} rdoOff=${doOff} raiOff=${aiOff} raoOff=${aoOff}`
+  );
 
-  // Seed random initial AI values so each module looks different
-  for (let k = 0; k < info.ai; k++) {
-    _simSlaveIO[address].ai[k]     = Math.floor(Math.random() * 4095);
-    _simSlaveIO[address].aiDrift[k] = (Math.random() * 20) - 10;
-  }
+  // Persist to localStorage
+  _simModbusSave();
 
-  console.log(`[MODBUS] Slave registered: ${slave.label} DI=${info.di} DO=${info.do} AI=${info.ai} AO=${info.ao}`);
+  return slave;
 }
 
 // =============================================================
-// modbusStartDiscovery — mirrors void modbusStartDiscovery()
-// Simulates scanning addresses 1-10, "finds" template slaves
+// simUnregisterModule — removes module by address
 // =============================================================
-function modbusStartDiscovery(callback) {
-  // Clear existing slaves
-  SimState.mbSlaves      = [];
-  SimState.mbSlaveCount  = 0;
-  SimState.mbDiscoveryDone = false;
+function simUnregisterModule(address) {
+  const idx = SimState.mbSlaves.findIndex(s => s.address === address);
+  if (idx < 0) return false;
 
-  console.log('[MODBUS] Discovery started...');
+  SimState.mbSlaves.splice(idx, 1);
 
-  // Simulate discovery delay (RS485 scan takes ~1s on real HW)
-  if (_discoveryTimer) clearTimeout(_discoveryTimer);
-  _discoveryTimer = setTimeout(() => {
-    for (const tmpl of SIM_DISCOVERY_TEMPLATES) {
-      modbusRegisterSlave(tmpl.address, tmpl.type);
-    }
-    SimState.mbDiscoveryDone = true;
-    console.log(`[MODBUS] Discovery done. Found ${SimState.mbSlaveCount} slaves.`);
-    if (typeof callback === 'function') callback();
-  }, 1500); // 1.5s simulated scan time
-}
+  // Recalculate all offsets after removal (order-dependent)
+  _simRecalcOffsets();
 
-// =============================================================
-// modbusPoll — mirrors void modbusPoll()
-// Called from scan loop every ~100ms (every 10 scan cycles)
-// Updates simulated remote IO values and copies to global tables
-// =============================================================
-let _pollCycle = 0;
-
-function modbusPoll() {
-  _pollCycle++;
-  if (_pollCycle % 10 !== 0) return; // poll at ~100ms rate (10ms * 10)
-
-  for (let s = 0; s < SimState.mbSlaveCount; s++) {
-    const slave = SimState.mbSlaves[s];
-    const io    = _simSlaveIO[slave.address];
-    if (!io) continue;
-
-    slave.pollCount++;
-
-    // --- Simulate DI: slow toggle based on phase ---
-    for (let k = 0; k < slave.numDI; k++) {
-      io.diPhase[k] = (io.diPhase[k] + 1) % (80 + k * 15);
-      if (io.diPhase[k] === 0) io.di[k] = !io.di[k];
-      SimState.rdi[slave.rdiOff + k] = io.di[k];
-    }
-
-    // --- Simulate AI: drifting values ---
-    for (let k = 0; k < slave.numAI; k++) {
-      io.aiDrift[k] += (Math.random() - 0.5) * 5;
-      io.ai[k] = clamp(io.ai[k] + Math.round(io.aiDrift[k]), 0, 4095);
-      if (Math.abs(io.aiDrift[k]) > 30) io.aiDrift[k] *= 0.5;
-      SimState.rai[slave.raiOff + k] = io.ai[k];
-    }
-
-    // --- DO: reflect what was written to rdo ---
-    for (let k = 0; k < slave.numDO; k++) {
-      io.do[k] = SimState.rdo[slave.rdoOff + k];
-    }
-
-    // --- AO: reflect what was written to rao ---
-    for (let k = 0; k < slave.numAO; k++) {
-      io.ao[k] = SimState.rao[slave.raoOff + k];
-    }
-  }
-}
-
-// =============================================================
-// modbusGetStatusJson — mirrors modbusGetStatus() for web API
-// Returns the JSON structure expected by monitor.html
-// =============================================================
-function modbusGetStatusJson() {
-  return {
-    slaves: SimState.mbSlaves.map(s => ({
-      address:    s.address,
-      label:      s.label,
-      type:       s.type,
-      typeName:   s.typeName,
-      online:     s.online,
-      discovered: s.discovered,
-      di:         s.numDI,
-      do:         s.numDO,
-      ai:         s.numAI,
-      ao:         s.numAO,
-      polls:      s.pollCount,
-      errors:     s.errorCount,
-      rdiOff:     s.rdiOff,
-      rdoOff:     s.rdoOff,
-      raiOff:     s.raiOff,
-      raoOff:     s.raoOff,
-    })),
-    rdi: Array.from(SimState.rdi.slice(0, 64)),
-    rdo: Array.from(SimState.rdo.slice(0, 64)),
-    rai: Array.from(SimState.rai.slice(0, 32)),
-    rao: Array.from(SimState.rao.slice(0, 32)),
-    discovered: SimState.mbDiscoveryDone,
-  };
-}
-
-// =============================================================
-// Manual slave management (for modbus_panel.js)
-// =============================================================
-function modbusAddSlave(address, type) {
-  // Don't add duplicates
-  if (SimState.mbSlaves.find(s => s.address === address)) {
-    console.warn('[MODBUS] Slave already exists at address', address);
-    return false;
-  }
-  modbusRegisterSlave(address, type);
+  SimState.mbSlaveCount = SimState.mbSlaves.length;
+  _simModbusSave();
+  console.log(`[SIM-Modbus] Removido: addr=${address}`);
   return true;
 }
 
-function modbusRemoveSlave(address) {
-  const idx = SimState.mbSlaves.findIndex(s => s.address === address);
-  if (idx >= 0) {
-    delete _simSlaveIO[address];
-    SimState.mbSlaves.splice(idx, 1);
-    SimState.mbSlaveCount--;
-    // Recalculate offsets
-    let rdiOff = 0, rdoOff = 0, raiOff = 0, raoOff = 0;
-    for (const s of SimState.mbSlaves) {
-      s.rdiOff = rdiOff; rdiOff += s.numDI;
-      s.rdoOff = rdoOff; rdoOff += s.numDO;
-      s.raiOff = raiOff; raiOff += s.numAI;
-      s.raoOff = raoOff; raoOff += s.numAO;
-    }
-    return true;
+function _simRecalcOffsets() {
+  let diOff = 0, doOff = 0, aiOff = 0, aoOff = 0;
+  for (const s of SimState.mbSlaves) {
+    s.rdiOff = diOff; s.rdoOff = doOff;
+    s.raiOff = aiOff; s.raoOff = aoOff;
+    diOff += s.numDI; doOff += s.numDO;
+    aiOff += s.numAI; aoOff += s.numAO;
   }
-  return false;
 }
+
+// =============================================================
+// simStartDiscovery — mirrors modbusStartDiscovery() + discovery loop
+//
+// In the simulator, discovery is instantaneous (no RS485 bus to scan).
+// Optionally accepts a list of modules to "discover".
+// Without arguments: resets discovery state (simulates empty scan).
+// =============================================================
+function simStartDiscovery(moduleList) {
+  SimState.mbDiscoveryDone = false;
+
+  if (moduleList && moduleList.length > 0) {
+    // Register provided modules as if discovered
+    for (const m of moduleList) {
+      simRegisterModule(m.address, m.typeKey, m.label);
+    }
+  }
+
+  // Simulate ~500ms discovery latency (mirrors MODBUS_DISC_TIMEOUT * 10 addresses)
+  setTimeout(() => {
+    SimState.mbDiscoveryDone = true;
+    console.log(`[SIM-Modbus] Discovery completo. ${SimState.mbSlaveCount} módulos.`);
+    if (typeof simPanelRefresh === 'function') simPanelRefresh();
+  }, 500);
+}
+
+// =============================================================
+// simReadRemoteInputs — mirrors readInputs() Modbus section in plc_memory.cpp
+//
+// Called BEFORE plcScan() so that X[8+] and A[4+] reflect remote inputs.
+//   rdi[] → plcMem.X[8+]   (mirrors: plcMem.X[8+i] = rdi[i])
+//   rai[] → plcMem.A[4+]   (mirrors: plcMem.A[4+i] = rai[i])
+// =============================================================
+function simReadRemoteInputs() {
+  const m = SimState.mem;
+
+  // rdi[] → X[8+]  (mirrors: for i < MODBUS_MAX_RDI && (8+i) < MEM_X_SIZE)
+  for (let i = 0; i < 64 && (8 + i) < 64; i++) {
+    m.X[8 + i] = SimState.rdi[i] ? true : false;
+  }
+
+  // rai[] → A[4+]  (mirrors: for i < MODBUS_MAX_RAI && (4+i) < MEM_A_SIZE)
+  for (let i = 0; i < 32 && (4 + i) < 16; i++) {
+    m.A[4 + i] = SimState.rai[i] || 0;
+  }
+}
+
+// =============================================================
+// simWriteRemoteOutputs — mirrors writeOutputs() in plc_memory.cpp
+//                         (the function that was MISSING from firmware)
+//
+// Called AFTER plcScan() so that rdo[] reflects the computed Y[8+].
+//   plcMem.Y[8+] → rdo[]  (mirrors: rdo[i] = plcMem.Y[8+i])
+//
+// NOTE: The physical output part (Y[0..3] → GPIO) is already handled
+// by the simulator's IO layer. Only the Modbus remote part is needed here.
+// =============================================================
+function simWriteRemoteOutputs() {
+  const m = SimState.mem;
+
+  // Y[8+] → rdo[]  (mirrors: for i < MODBUS_MAX_RDO && (8+i) < MEM_Y_SIZE)
+  for (let i = 0; i < 64 && (8 + i) < 64; i++) {
+    SimState.rdo[i] = m.Y[8 + i] ? true : false;
+  }
+  // (rao[] left for future AO support — no equivalent in current firmware either)
+}
+
+// =============================================================
+// Persistence — save/restore module table to localStorage
+// =============================================================
+function _simModbusSave() {
+  try {
+    localStorage.setItem('sim_modbus_slaves', JSON.stringify(
+      SimState.mbSlaves.map(s => ({ address: s.address, typeKey: s.typeKey, label: s.label }))
+    ));
+  } catch(e) {}
+}
+
+function _simModbusLoad() {
+  try {
+    const raw = localStorage.getItem('sim_modbus_slaves');
+    if (!raw) return;
+    const list = JSON.parse(raw);
+    for (const m of list) {
+      simRegisterModule(m.address, m.typeKey, m.label);
+    }
+    SimState.mbDiscoveryDone = list.length > 0;
+    console.log(`[SIM-Modbus] Restaurados ${list.length} módulos desde localStorage.`);
+  } catch(e) {
+    console.warn('[SIM-Modbus] No se pudo restaurar módulos:', e);
+  }
+}
+
+// Restore persisted modules on load
+_simModbusLoad();
