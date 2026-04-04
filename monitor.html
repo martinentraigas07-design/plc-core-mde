@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PLC-CORE-MDE — Monitor PRO</title>
-<link rel="stylesheet" href="style.css">
-<script src="js/api/plc_api.js"></script>
+<link rel="stylesheet" href="/style.css">
+<script src="/js/api/plc_api.js"></script>
 <style>
 /* ============================================================
    MONITOR PRO — Industrial diagnostic display
@@ -998,30 +998,25 @@ function escapeHtml(str) {
 modbusStatusPoll();
 mbPollTimer = setInterval(modbusStatusPoll, MB_POLL_MS);
 </script>
-<div class="license-footer">
-  PLC-CORE-MDE © 2026 Martín Entraigas – MDE Electrónica  
-  Uso no comercial únicamente.  
-  <a href="LICENSE.txt" target="_blank">Ver licencia completa</a>
-</div>
+
+<div class="license-footer">PLC-CORE-MDE &copy; 2026 Martín Entraigas – MDE Electrónica&nbsp;&nbsp;Uso no comercial únicamente.&nbsp;&nbsp;<a href="LICENSE.txt" target="_blank">Ver licencia completa</a></div>
 <style>
 .license-footer {
+  font-family: var(--font-mono, 'Share Tech Mono', monospace);
+  font-size: 9px;
+  color: var(--text-dim, #4a6070);
   text-align: center;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-dim);
-  opacity: 0.7;
-  margin-top: 24px;
-  margin-bottom: 8px;
+  padding: 8px 16px;
+  letter-spacing: .5px;
   position: relative;
   z-index: 10;
-  pointer-events: auto;
 }
 .license-footer a {
-  color: var(--accent2);
-  text-decoration: none;
+  color: var(--text-dim, #4a6070);
+  text-decoration: underline;
 }
 .license-footer a:hover {
-  text-decoration: underline;
+  color: var(--accent2, #3ab4f2);
 }
 </style>
 </body>
