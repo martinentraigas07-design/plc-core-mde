@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PLC-CORE-MDE — Ladder PRO</title>
+<link rel="stylesheet" href="style.css">
 <!-- ══ SIMULADOR PLC-CORE-MDE ══ -->
 <script src="simulator/plc_sim_state.js"></script>
 <script src="simulator/plc_sim_io.js"></script>
@@ -9,10 +13,6 @@
 <script src="simulator/plc_sim_scan.js"></script>
 <script src="simulator/sim_panel.js"></script>
 <!-- ══════════════════════════════ -->
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PLC-CORE-MDE — Ladder PRO</title>
-<link rel="stylesheet" href="style.css">
 <script src="js/api/plc_api.js"></script>
 <script src="js/compiler/compiler.js"></script>
 <script src="js/compiler/symbol_table.js"></script>
@@ -2153,70 +2153,83 @@ function loadProgram(){
 refreshBadge();
 
 (function startup(){
-  // 1. Try session draft first (instant, no network)
-  var hasDraft = false;
-  try {
-    var d = sessionStorage.getItem('ld_pro_v2');
-    if (d) {
-      var parsed = JSON.parse(d);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        rungs = parsed.map(function(r){
-          var m = LadderAST.legacyToPaths(r);
-          if (!m.id)      m.id      = uid();
-          if (!m.comment) m.comment = '';
-          if (!Array.isArray(m.paths))   m.paths   = [[]];
-          if (!Array.isArray(m.outputs)) m.outputs = [];
-          return m;
-        });
-        hasDraft = true;
-      }
-    }
-  } catch(e) { console.warn('Draft parse error:', e); }
-
-  if (hasDraft) {
-    renderAll();
-    setStatus('Draft restored — ' + rungs.length + ' rung(s)');
-    csStatus('ok', 'Draft restored');
-    return;
-  }
-
-  // 2. Try loading from ESP32 SPIFFS
+  // 1. Try /load first — simulator or ESP32.
+  //    If /load returns a plc_program envelope (saved from FBD or Ladder),
+  //    it takes priority over any stale sessionStorage draft.
+  //    sessionStorage draft is only used when /load has nothing.
   csStatus('warn', 'Loading program...');
-  loadProgram().then(function(program){
-    // /load returns {} when file is missing — treat that as empty
-    var isEmpty = !program || (typeof program === 'object' && Object.keys(program).length === 0);
+  loadProgram().then(function(program) {
+    var isEmpty = !program ||
+      (typeof program === 'object' && Object.keys(program).length === 0);
+
+    // If /load has a real plc_program envelope → use it, clear stale draft
+    if (!isEmpty && program && program.format === 'plc_program') {
+      try { sessionStorage.removeItem('ld_pro_v2'); } catch(e) {}
+      initLadder(program);
+      return;
+    }
+
+    // If /load has a ladder-native envelope → use it, clear stale draft
+    if (!isEmpty && program && (program.source === 'ladder' || program.ladder)) {
+      try { sessionStorage.removeItem('ld_pro_v2'); } catch(e) {}
+      initLadder(program);
+      return;
+    }
+
+    // 2. /load empty or unknown format — try sessionStorage draft
+    var hasDraft = false;
+    try {
+      var d = sessionStorage.getItem('ld_pro_v2');
+      if (d) {
+        var parsed = JSON.parse(d);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          rungs = parsed.map(function(r) {
+            var m = LadderAST.legacyToPaths(r);
+            if (!m.id)      m.id      = uid();
+            if (!m.comment) m.comment = '';
+            if (!Array.isArray(m.paths))   m.paths   = [[]];
+            if (!Array.isArray(m.outputs)) m.outputs = [];
+            return m;
+          });
+          hasDraft = true;
+        }
+      }
+    } catch(e) { console.warn('Draft parse error:', e); }
+
+    if (hasDraft) {
+      renderAll();
+      setStatus('Draft restored — ' + rungs.length + ' rung(s)');
+      csStatus('ok', 'Draft restored');
+      return;
+    }
+
+    // 3. Nothing found — start with default rung
     if (isEmpty) {
       initLadder(null);
     } else {
-      initLadder(program);
+      initLadder(program);  // unknown format, let initLadder try all shapes
     }
   });
 })();
 </script>
-<div class="license-footer">
-  PLC-CORE-MDE © 2026 Martín Entraigas – MDE Electrónica  
-  Uso no comercial únicamente.  
-  <a href="LICENSE.txt" target="_blank">Ver licencia completa</a>
-</div>
+<div class="license-footer">PLC-CORE-MDE &copy; 2026 Martín Entraigas – MDE Electrónica&nbsp;&nbsp;Uso no comercial únicamente.&nbsp;&nbsp;<a href="LICENSE.txt" target="_blank">Ver licencia completa</a></div>
 <style>
 .license-footer {
+  font-family: var(--font-mono, 'Share Tech Mono', monospace);
+  font-size: 9px;
+  color: var(--text-dim, #4a6070);
   text-align: center;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-dim);
-  opacity: 0.7;
-  margin-top: 24px;
-  margin-bottom: 8px;
+  padding: 8px 16px;
+  letter-spacing: .5px;
   position: relative;
   z-index: 10;
-  pointer-events: auto;
 }
 .license-footer a {
-  color: var(--accent2);
-  text-decoration: none;
+  color: var(--text-dim, #4a6070);
+  text-decoration: underline;
 }
 .license-footer a:hover {
-  text-decoration: underline;
+  color: var(--accent2, #3ab4f2);
 }
 </style>
 </body>
