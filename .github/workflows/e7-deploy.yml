@@ -1,0 +1,38 @@
+name: Deploy PLC-CORE-MDE E7 from verified archive
+on:
+  push:
+    branches: [stage-e7-portable-deploy]
+permissions:
+  contents: write
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify and extract archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .e7-parts/part-* > "$RUNNER_TEMP/plc-e7.zip"
+          echo "1e33e6ec063493febc110a693b807944fa151d79a15a2cc75c3da3ac202ff41f  $RUNNER_TEMP/plc-e7.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/plc-e7.zip" -d "$RUNNER_TEMP/e7"
+          test -f "$RUNNER_TEMP/e7/PLC-CORE-MDE/index.html"
+          test -f "$RUNNER_TEMP/e7/PLC-CORE-MDE/ladder.html"
+          test -f "$RUNNER_TEMP/e7/PLC-CORE-MDE/firmware/PLC_CORE_MDE.ino"
+      - name: Update main from full E7 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B main origin/main
+          rsync -a --delete --exclude='.git/' --exclude='.github/' "$RUNNER_TEMP/e7/PLC-CORE-MDE/" ./
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No source changes"
+          else
+            git commit -m "Release PLC-CORE-MDE E7 portable web simulator and embedded UI"
+            git push origin HEAD:main
+          fi
