@@ -147,7 +147,7 @@ Una pequeña línea de producción en taller mecánico cuenta piezas que pasan p
 6. **CTU** salida Q → **NOT** → `OUT2` (MOTOR — se detiene cuando Q=1)
 
 ### Concepto clave
-El bloque **R_TRIG** convierte la señal del sensor (que puede durar varios ciclos de scan) en un pulso de exactamente 1 ciclo. Sin él, el CTU podría contar múltiples veces por pieza. Esta es la función de detección de flanco ascendente de la norma IEC.
+El bloque **R_TRIG** convierte una señal que puede durar varios ciclos de scan en un pulso de exactamente 1 ciclo (detección de flanco ascendente de la norma IEC). Los bloques **CTU** y **CTD** ya cuentan solo en el flanco ascendente de su entrada CU/CD, así que R_TRIG antes de un contador no es necesario para contar bien; es útil cuando se quiere ese pulso de 1 ciclo para otra cosa (SET de un biestable, disparo de un TP, etc.).
 
 ---
 
@@ -308,8 +308,8 @@ El valor de tiempo (PT) no se está guardando correctamente. Verificar que el ca
 **La salida OUT no responde aunque la lógica es correcta:**
 Ir al Monitor y verificar que el nodo output muestra el estado esperado. Si el nodo está correcto pero el hardware no responde, verificar el cableado y que el PLC no esté en STOP.
 
-**El contador no cuenta:**
-Verificar que haya un bloque R_TRIG entre la señal de entrada y el CU del contador. Sin R_TRIG, el contador puede incrementar múltiples veces por ciclo de scan para una señal que tarda en bajar.
+**El contador no cuenta o cuenta de más:**
+El contador incrementa una vez por cada flanco ascendente en CU (no cuenta mientras la señal se mantiene en 1). Verificar que CU esté en el puerto de entrada superior y R (reset) en el inferior, que la señal cambie realmente de 0 a 1 y que el reset (R) no se mantenga en 1: mientras R=1 el contador queda en 0. Un pulsador mecánico con rebotes puede generar varios flancos por pulsación; filtrarlo con un TON si hace falta.
 
 **PWM no genera señal:**
 Verificar que la salida PWM no esté conectada también como salida digital (OUT1..4). Un pin no puede funcionar en modo digital y PWM simultáneamente.
@@ -321,17 +321,20 @@ Verificar que la salida PWM no esté conectada también como salida digital (OUT
 El PLC ejecuta un ciclo continuo de 10ms (100 Hz):
 
 ```
-1. Leer entradas físicas (IN1, IN2, AI1)
-2. Ejecutar lógica combinacional (AND, OR, NOT, CMP)
-3. Ejecutar timers (TON, TOF, TP, BLINK)
-4. Ejecutar contadores (CTU, CTD)
-5. Ejecutar memorias (SR, RS)
-6. Detectar flancos (R_TRIG, F_TRIG)
-7. Escalar analógicos (SCALE)
-8. Escribir PWM
-9. Escribir salidas digitales (OUT1..4)
+1. Leer entradas físicas (IN1, IN2, AI1) — una lectura instantánea por ciclo
+2. Evaluar cada bloque UNA vez, en orden de dependencias:
+   un bloque se calcula después de los bloques que lo alimentan,
+   sea cual sea su tipo (AND, OR, NOT, XOR, CMP, TON, TOF, TP, BLINK,
+   CTU, CTD, SR, RS, R_TRIG, F_TRIG, SCALE, PWM)
+3. Escribir PWM y salidas digitales (OUT1..4)
 → volver a 1
 ```
+
+**Orden de ejecución.** El orden se calcula una sola vez al cargar el programa y no depende del orden en que dibujaste los bloques ni de sus números de ID. Cuando el programa tiene un lazo (una salida que vuelve a una entrada, como en un enclavamiento), en cada lazo **un** bloque entrega al resto su valor del ciclo anterior: el bloque con memoria de menor ID (SR, RS, TON, CTU...) o, si no hay ninguno, el bloque de menor ID. Esto hace que el resultado sea siempre el mismo en el PLC y en el simulador. Para que los enclavamientos sean fáciles de razonar, cerrá el lazo a través de un SR/RS.
+
+**Puertos de entrada.** Lo que importa es el puerto al que llega el cable, no el orden en que los dibujaste: puerto superior = S (SR/RS), CU (CTU), CD (CTD), A de las compuertas; puerto inferior = R, LD, B.
+
+**SCALE.** Usa aritmética entera con truncamiento hacia cero: `(valor − inMin) × (outMax − outMin) / (inMax − inMin) + outMin`, limitado al rango [outMin, outMax]. Si inMax = inMin, la salida es outMin. Un 0 escrito explícitamente en un parámetro vale 0; solo un campo vacío usa el valor por defecto (0, 4095, 0, 100).
 
 **Importante:** Todas las entradas se leen al inicio del ciclo y todas las salidas se escriben al final. Esto significa que los cambios en las entradas no se ven hasta el próximo ciclo. A 10ms de ciclo, la latencia máxima es de 10ms — completamente aceptable para todas las aplicaciones industriales de control de movimiento lento y proceso.
 

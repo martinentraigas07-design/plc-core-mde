@@ -344,8 +344,8 @@
       // R_TRIG(X) = X AND NOT(X_prev_scan)
       // F_TRIG(X) = NOT(X) AND X_prev_scan
       // We model X_prev with a dedicated SR latch that persists state.
-      var edgePrev = {};
-      var edgePrevUpdate = {};
+      var edgeNodeCount = 0;
+      var compileWarnings = [];
 
       /* ── helpers ─────────────────────────────────────────── */
 
@@ -381,11 +381,15 @@
 
       /* For X inputs: input1=X0, input2=X1 */
       function xNodeType(index) {
+        if (index !== 0 && index !== 1)
+          throw new Error('X' + index + ' no existe: la placa tiene solo 2 entradas digitales (X0 y X1)');
         return (index === 0) ? 'input1' : 'input2';
       }
       /* For Y outputs: output1-4 */
       function yNodeType(index) {
-        return ['output1','output2','output3','output4'][index] || 'output1';
+        var t = ['output1','output2','output3','output4'][index];
+        if (!t) throw new Error('Y' + index + ' no existe: la placa tiene solo 4 salidas digitales (Y0 a Y3)');
+        return t;
       }
 
       /* Get or create the base state node for a variable.
@@ -446,43 +450,15 @@
           }
 
           case 'edge': {
-            /* R_TRIG(X) = X AND NOT(X_prev)
-               F_TRIG(X) = NOT(X) AND X_prev
-
-               X_prev is modelled with a dedicated SR latch.
-               The latch is updated each scan via the SR semantics:
-                 SR.S = X (current),  SR.R = NOT(X)
-               This gives SR.Q = previous value of X.            */
+            /* R_TRIG(X) / F_TRIG(X): nodos nativos del runtime.
+               Detectan el flanco comparando X con su valor del scan
+               anterior y entregan un pulso de exactamente 1 scan.
+               (Las versiones anteriores emulaban X_prev con un SR(S=X,R=NOT X);
+               el runtime sigue entendiendo ese idioma para programas viejos.) */
             var xIdx = getVarNode(node.var);
-
-            // Get or create the prev-state latch for this variable
-            var prevKey = 'prev_' + node.var;
-            if (!edgePrev[prevKey]) {
-              var prevNd  = mkNode('sr');
-              var prevIdx = emit(prevNd);
-              // Wire: S = X, R = NOT(X)
-              var notXNd  = mkNode('not', { in1: xIdx });
-              var notXIdx = emit(notXNd);
-              nodes[prevIdx].in1 = xIdx;    // S = X
-              nodes[prevIdx].in2 = notXIdx; // R = NOT(X)
-              edgePrev[prevKey] = prevIdx;
-              edgePrevUpdate[prevKey] = prevIdx;
-            }
-            var xPrevIdx = edgePrev[prevKey];
-
-            if (node.edge === 'R_TRIG') {
-              // R_TRIG = X AND NOT(X_prev)
-              var notPrevNd  = mkNode('not', { in1: xPrevIdx });
-              var notPrevIdx = emit(notPrevNd);
-              var andNd      = mkNode('and', { in1: xIdx, in2: notPrevIdx });
-              resultIdx = emit(andNd);
-            } else {
-              // F_TRIG = NOT(X) AND X_prev
-              var notXNd2  = mkNode('not', { in1: xIdx });
-              var notXIdx2 = emit(notXNd2);
-              var andNd2   = mkNode('and', { in1: notXIdx2, in2: xPrevIdx });
-              resultIdx = emit(andNd2);
-            }
+            var edgeNd = mkNode(node.edge === 'F_TRIG' ? 'f_trig' : 'r_trig', { in1: xIdx });
+            resultIdx = emit(edgeNd);
+            edgeNodeCount++;
             break;
           }
 
@@ -541,27 +517,25 @@
       function compileAction(act, condIdx) {
         var addr = parseAddr(act.target);
 
-        if (addr.area === 'Y') {
-          var outNd = mkNode(yNodeType(addr.index), { in1: condIdx, outIdx: addr.index });
-          outNd.address = { area: 'Y', index: addr.index };
-          emit(outNd);
-
-        } else if (addr.area === 'M') {
-          // Ensure the SR node exists for this M variable
+        if (addr.area === 'Y' || addr.area === 'M') {
+          // Un único nodo por variable (los contactos de Y leen la bobina).
           getVarNode(act.target);
           var vs = varState[act.target];
+          if (!vs.coils) vs.coils = [];
 
-          if (act.type === 'coil' || act.type === 'set') {
+          if (act.type === 'set') {
             vs.setList.push(condIdx);
           } else if (act.type === 'reset') {
             vs.resetList.push(condIdx);
           } else if (act.type === 'toggle') {
-            // TOGGLE: Y = Y XOR condition
-            var mIdx  = vs.readIdx;
-            var xorNd = mkNode('xor', { in1: mIdx, in2: condIdx });
-            var xorIdx = emit(xorNd);
-            // The XOR result drives the SET of the latch
-            vs.setList.push(xorIdx);
+            // TOGGLE: invierte la variable en cada flanco ascendente de la condición
+            var trigIdx = emit(mkNode('r_trig', { in1: condIdx }));
+            var curIdx  = vs.readIdx;
+            var notCur  = emit(mkNode('not', { in1: curIdx }));
+            vs.setList.push(emit(mkNode('and', { in1: trigIdx, in2: notCur })));
+            vs.resetList.push(emit(mkNode('and', { in1: trigIdx, in2: curIdx })));
+          } else {
+            vs.coils.push(condIdx);        // bobina normal: sigue a la condición
           }
 
         } else {
@@ -579,37 +553,52 @@
         });
       });
 
-      // ── Wire SET/RESET accumulators to SR nodes ───────────
-      // Multiple SET conditions → OR chain → SR.in1
-      // Multiple RESET conditions → OR chain → SR.in2
+      // ── Resolver bobinas de Y y M ─────────────────────────
+      //  • Solo bobinas normales:  Y -> output.in1 = condición (última gana)
+      //                            M -> RS(S=c, R=NOT c)  (sigue a la condición)
+      //  • Con SET/RESET:          nodo SR (o RS si solo hay RESET) que retiene;
+      //                            en Y alimenta al nodo de salida.
+      //  Mezclar bobina normal con SET/RESET sobre la misma variable es
+      //  ambiguo: la bobina normal se trata como SET y se avisa.
       Object.keys(varState).forEach(function(varName) {
         var vs   = varState[varName];
         var addr = parseAddr(varName);
-        if (addr.area !== 'M') return;
-        var srNd = nodes[vs.readIdx];
+        if (addr.area !== 'M' && addr.area !== 'Y') return;
+        var coils = vs.coils || [];
+        var hasLatch = vs.setList.length > 0 || vs.resetList.length > 0;
 
-        if (vs.setList.length > 0) {
-          srNd.in1 = _buildORChain(vs.setList, mkNode, emit);
-        }
-        if (vs.resetList.length > 0) {
-          srNd.in2 = _buildORChain(vs.resetList, mkNode, emit);
-          // If only RESET present (no SET): use RS (Reset-dominant)
-          if (vs.setList.length === 0) srNd.type = 'rs';
-        }
-      });
+        if (coils.length > 1)
+          compileWarnings.push(varName + ': ' + coils.length + ' bobinas normales; gana la última del programa');
 
-      // _fixEdgeOrder (Hardening 1): schedule X_prev SR latch AFTER output nodes
-    (function(){
-      var OT=['output1','output2','output3','output4','sr','rs'];
-      var ON=nodes.filter(function(n){return OT.indexOf(n.type)>=0;});
-      Object.keys(edgePrevUpdate).forEach(function(k){
-        var L=nodes[edgePrevUpdate[k]];
-        ON.forEach(function(o){if(L.outputs.indexOf(o.id)<0)L.outputs.push(o.id);});
+        if (!hasLatch) {
+          if (coils.length === 0) return;                 // variable solo leída
+          var c = coils[coils.length - 1];
+          if (addr.area === 'Y') {
+            nodes[vs.readIdx].in1 = c;
+          } else {
+            var nd = nodes[vs.readIdx];
+            nd.type = 'rs';                               // RS(S=c, R=NOT c) == c
+            nd.in1 = c;
+            nd.in2 = emit(mkNode('not', { in1: c }));
+          }
+          return;
+        }
+
+        if (coils.length > 0) {
+          compileWarnings.push(varName + ': mezcla bobina normal con SET/RESET; la normal se trata como SET');
+          vs.setList = vs.setList.concat(coils);
+        }
+        var latch = (addr.area === 'M') ? nodes[vs.readIdx] : mkNode('sr');
+        if (addr.area === 'Y') {
+          emit(latch);
+          nodes[vs.readIdx].in1 = nodes.length - 1;
+        }
+        if (vs.setList.length > 0)   latch.in1 = _buildORChain(vs.setList, mkNode, emit);
+        if (vs.resetList.length > 0) latch.in2 = _buildORChain(vs.resetList, mkNode, emit);
+        if (vs.setList.length === 0) latch.type = 'rs';
       });
-    }());
 
     // Variable validation (Hardening 4)
-    var compileWarnings=[];
     (function(){
       var SZ={X:64,Y:64,M:64,T:32,C:32,A:16,R:32};
       Object.keys(varState).forEach(function(v){
@@ -648,7 +637,7 @@
 
       var debugInfo={
         cacheHits:Object.keys(exprCache).length,
-        edgeNodes:Object.keys(edgePrev).length,
+        edgeNodes:edgeNodeCount,
         warnings:compileWarnings
       };
       return _buildIR(nodes, order, symbolTable, debugInfo);
@@ -726,8 +715,8 @@
 
   var LadderTests = (function() {
 
-    function test_h1_cache_subexpr(){var andAB=and(contact('X0'),contact('X1'));var orDup={type:'or',children:[andAB,andAB]};var ir=LadderCompiler.compileLadderToIR(makeProgram([makeRung('r1',orDup,[action('coil','Y0')])]));var ands=ir.program.nodes.filter(function(n){return n.type==='and';});assert(ands.length===1,'h1:single AND');}
-    function test_h2_edge_reuse(){var ir=LadderCompiler.compileLadderToIR(makeProgram([makeRung('r1',and(edge('X0','R_TRIG'),edge('X0','R_TRIG')),[action('coil','Y0')])]));var srs=ir.program.nodes.filter(function(n){return n.type==='sr';});assert(srs.length===1,'h2:single SR latch');}
+    function test_h1_cache_subexpr(){var ir=LadderCompiler.compileLadderToIR(makeProgram([makeRung('r1',and(contact('X0'),contact('X1')),[action('coil','Y0')]),makeRung('r2',and(contact('X0'),contact('X1')),[action('coil','Y1')])]));var ands=ir.program.nodes.filter(function(n){return n.type==='and';});assert(ands.length===1,'h1:single AND shared by two rungs');}
+    function test_h2_edge_reuse(){var ir=LadderCompiler.compileLadderToIR(makeProgram([makeRung('r1',edge('X0','R_TRIG'),[action('coil','Y0')]),makeRung('r2',edge('X0','R_TRIG'),[action('coil','Y1')])]));var t=ir.program.nodes.filter(function(n){return n.type==='r_trig';});assert(t.length===1,'h2:single r_trig node shared');}
     function test_h3_set_reset_priority(){var ir=LadderCompiler.compileLadderToIR(makeProgram([makeRung('rS',contact('X0'),[action('set','M0')]),makeRung('rR',contact('X0'),[action('reset','M0')])]));var sr=ir.program.nodes.find(function(n){return n.type==='sr';});assert(sr!==undefined,'h3:SR');assert(sr.in1!==null&&sr.in1>=0,'h3:in1');assert(sr.in2!==null&&sr.in2>=0,'h3:in2');assert(sr.type==='sr','h3:Set-dominant');}
     function test_h4_multi_rung_same_var(){var ir=LadderCompiler.compileLadderToIR(makeProgram([makeRung('r1',contact('X0'),[action('coil','Y0')]),makeRung('r2',contact('X1'),[action('coil','Y0')])]));var outs=ir.program.nodes.filter(function(n){return n.type==='output1';});assert(outs.length>=1,'h4:output1');outs.forEach(function(n,i){assert(n.in1!==null&&n.in1>=0,'h4:out'+i+' driver');});}
     function test_h5_stable_order(){function mk(){return makeProgram([makeRung('r1',or(and(contact('X0'),contact('X1')),contact('X0')),[action('coil','Y0')])]);}var a=LadderCompiler.compileLadderToIR(mk());var b=LadderCompiler.compileLadderToIR(mk());assert(a.program.nodes.length===b.program.nodes.length,'h5:node count');assert(a.order.length===b.order.length,'h5:order length');}
@@ -735,7 +724,7 @@
     function test_h7_hash_canonical(){assert(hashExpr(and(contact('X0'),contact('X1')))===hashExpr(and(contact('X1'),contact('X0'))),'h7:AND commutative');assert(hashExpr(or(contact('X0'),contact('X1')))===hashExpr(or(contact('X1'),contact('X0'))),'h7:OR commutative');}
     function test_h8_hash_not_contact(){assert(hashExpr(not(contact('X0')))===hashExpr(not(contact('X0'))),'h8:NOT stable');assert(hashExpr(contact('X0','NC'))!==hashExpr(not(contact('X0','NO'))),'h8:NC!=NOT(NO)');}
     function test_h9_metadata(){var ir=compileOne(contact('X0'),[action('coil','Y0')]);assert(ir.meta.compiledWith==='ladder_ast','h9:compiledWith');assert(ir.meta.version==='ladder_v1','h9:version');assert(ir.meta.source==='ladder_ast','h9:source');}
-    function test_h10_edge_order(){var ir=compileOne(edge('X0','R_TRIG'),[action('coil','Y0')]);var nds=ir.program.nodes,ord=ir.order;var si=nds.findIndex(function(n){return n.type==='sr';});var oi=nds.findIndex(function(n){return n.type==='output1';});assert(si>=0,'h10:SR');assert(oi>=0,'h10:output1');assert(ord.indexOf(si)>ord.indexOf(oi),'h10:SR after output1');}
+    function test_h10_edge_order(){var ir=compileOne(edge('X0','R_TRIG'),[action('coil','Y0')]);var nds=ir.program.nodes,ord=ir.order;var ti=nds.findIndex(function(n){return n.type==='r_trig';});var oi=nds.findIndex(function(n){return n.type==='output1';});assert(ti>=0,'h10:r_trig');assert(oi>=0,'h10:output1');assert(ord.indexOf(ti)<ord.indexOf(oi),'h10:r_trig evaluated before output1');}
 
     var _allTests=[
       test_series_simple,test_parallel,test_mixed,test_not,
@@ -770,7 +759,7 @@
     function test_mixed(){var ir=compileOne(or(and(contact('X0'),contact('X1')),contact('X0')),[action('coil','Y0')]);assert(hasType(ir,'and'),'m:and');assert(hasType(ir,'or'),'m:or');assert(hasType(ir,'output1'),'m:out');}
     function test_not(){var ir=compileOne(not(contact('X0')),[action('coil','Y0')]);assert(hasType(ir,'not'),'n:not');assert(hasType(ir,'output1'),'n:out');}
     function test_set_reset(){var ir=LadderCompiler.compileLadderToIR(makeProgram([makeRung('rs',contact('X0'),[action('set','M0')]),makeRung('rr',contact('X1'),[action('reset','M0')])]));var srs=ir.program.nodes.filter(function(n){return n.type==='sr'||n.type==='rs';});assert(srs.length===1,'sr:one');assert(srs[0].in1!==null,'sr:in1');assert(srs[0].in2!==null,'sr:in2');}
-    function test_edge_r_trig(){var ir=compileOne(edge('X0','R_TRIG'),[action('coil','Y0')]);assert(hasType(ir,'sr'),'e:sr');assert(hasType(ir,'not'),'e:not');assert(hasType(ir,'and'),'e:and');}
+    function test_edge_r_trig(){var ir=compileOne(edge('X0','R_TRIG'),[action('coil','Y0')]);assert(hasType(ir,'r_trig'),'e:r_trig');assert(hasType(ir,'output1'),'e:out');}
     function test_normalize_flatten_and(){var n=and(and(contact('X0'),contact('X1')),contact('X0'));var norm=LadderNormalizer.normalize(makeProgram([makeRung('r1',n,[action('coil','Y0')])]));var c=norm.rungs[0].condition;if(c.type==='and')c.children.forEach(function(ch){assert(ch.type!=='and','fa:flat');});}
     function test_normalize_flatten_or(){var n=or(or(contact('X0'),contact('X1')),contact('X0'));var norm=LadderNormalizer.normalize(makeProgram([makeRung('r1',n,[action('coil','Y0')])]));var c=norm.rungs[0].condition;if(c.type==='or')c.children.forEach(function(ch){assert(ch.type!=='or','fo:flat');});}
     function test_normalize_double_not(){var norm=LadderNormalizer.normalize(makeProgram([makeRung('r1',not(not(contact('X0'))),[action('coil','Y0')])]));var c=norm.rungs[0].condition;assert(c.type==='contact','dn:contact');assert(c.var==='X0','dn:X0');}

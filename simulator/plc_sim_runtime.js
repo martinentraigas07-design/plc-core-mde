@@ -1,9 +1,13 @@
 // =============================================================
 // PLC-CORE-MDE Project
 // Copyright (c) 2026 Martín Entraigas / PLC-CORE-MDE
-// plc_sim_runtime.js — v2 (IR-based simulator, Fase 1)
+// plc_sim_runtime.js — v3 (motor determinista, espejo de plc_runtime.cpp v6)
 //
-// FUENTE DE VERDAD: plc_runtime.cpp (plcScanNodes)
+// FUENTE DE VERDAD: plc_runtime.cpp (plcScan / plcBuildExecOrder)
+//
+// v3: un solo pase por nodo en orden de dependencias (execOrder), entradas
+// resueltas por PUERTO, SCALE entero con truncamiento (idéntico al firmware),
+// ciclos cortados en el bloque con memoria de menor ID (Tarjan + Kahn).
 //
 // Porta fielmente:
 //   runtimeClear()     → mirrors void runtimeClear()
@@ -37,11 +41,134 @@ function _getNodeIndexById(id) {
   return -1;
 }
 
+// Fuentes numéricas: AI1 y SCALE propagan intValue (mirrors isNumericSource)
+function _isNumericSource(t) { return t === 'analog1' || t === 'scale'; }
+
 // mirrors static int getNodeIntValue(int idx)
 function _getNodeIntValue(idx) {
   if (idx < 0) return 0;
-  if (SimState.nodes[idx].name === 'analog1') return SimState.nodes[idx].intValue;
-  return SimState.nodes[idx].state ? 1 : 0;
+  const n = SimState.nodes[idx];
+  if (_isNumericSource(n.type)) return n.intValue;
+  return n.state ? 1 : 0;
+}
+
+// mirrors static bool inState(const PlcNode&, which)
+function _inState(n, which) {
+  const src = which === 0 ? n.input1 : n.input2;
+  return src >= 0 ? SimState.nodes[src].state : false;
+}
+
+function _isMemoryType(t) {
+  return t === 'ton' || t === 'tof' || t === 'tp' || t === 'blink' ||
+         t === 'ctu' || t === 'ctd' || t === 'sr' || t === 'rs' ||
+         t === 'r_trig' || t === 'f_trig';
+}
+
+// mirrors jsonToInt: entero JSON o string (como guarda Drawflow); otro -> 0
+function _jsonToInt(v) {
+  if (v == null) return 0;
+  if (typeof v === 'number') return Number.isInteger(v) ? v : 0;
+  if (typeof v === 'boolean') return v ? 1 : 0;
+  const n = parseInt(String(v), 10);
+  return isNaN(n) ? 0 : n;
+}
+
+// mirrors plcBuildExecOrder() — mismo algoritmo, mismos desempates
+function buildExecOrder() {
+  const nodes = SimState.nodes, n = SimState.nodeCount;
+  SimState.execOrder = [];
+  if (n <= 0) return;
+
+  const byId = [];
+  for (let i = 0; i < n; i++) byId.push(i);
+  byId.sort((x, y) => nodes[x].id - nodes[y].id || x - y);   // estable, como la inserción del firmware
+
+  const pred = (i, k) => (k === 0 ? nodes[i].input1 : nodes[i].input2);
+  const edgeOn = [], edgeCut = [];
+  for (let i = 0; i < n; i++) {
+    edgeOn.push([false, false]); edgeCut.push([false, false]);
+    for (let k = 0; k < 2; k++) {
+      const p = pred(i, k);
+      edgeOn[i][k] = (p >= 0 && p !== i && nodes[p].type !== 'prev');
+    }
+  }
+  const before = new Array(n).fill(null).map(() => new Set());
+
+  for (let guard = 0; guard < n * 2 + 2; guard++) {
+    // Tarjan
+    const idx = new Array(n).fill(0), low = new Array(n).fill(0);
+    const on = new Array(n).fill(false), comp = new Array(n).fill(-1);
+    const stack = []; let counter = 0, compCount = 0;
+    const visit = (v) => {
+      idx[v] = low[v] = ++counter; stack.push(v); on[v] = true;
+      for (let w = 0; w < n; w++) {
+        for (let k = 0; k < 2; k++) {
+          if (!edgeOn[w][k] || edgeCut[w][k]) continue;
+          if (pred(w, k) !== v) continue;
+          if (idx[w] === 0) { visit(w); if (low[w] < low[v]) low[v] = low[w]; }
+          else if (on[w]) { if (idx[w] < low[v]) low[v] = idx[w]; }
+        }
+      }
+      if (low[v] === idx[v]) {
+        let w;
+        do { w = stack.pop(); on[w] = false; comp[w] = compCount; } while (w !== v);
+        compCount++;
+      }
+    };
+    for (let i = 0; i < n; i++) if (idx[i] === 0) visit(i);
+
+    let cutAny = false;
+    for (let c = 0; c < compCount; c++) {
+      let size = 0;
+      for (let i = 0; i < n; i++) if (comp[i] === c) size++;
+      if (size < 2) continue;
+      let pivot = -1, pivotAny = -1;
+      for (let a = 0; a < n; a++) {
+        const i = byId[a];
+        if (comp[i] !== c) continue;
+        if (pivotAny < 0) pivotAny = i;
+        if (pivot < 0 && _isMemoryType(nodes[i].type)) pivot = i;
+      }
+      if (pivot < 0) pivot = pivotAny;
+      for (let x = 0; x < n; x++) {
+        if (comp[x] !== c) continue;
+        for (let k = 0; k < 2; k++) {
+          if (!edgeOn[x][k] || edgeCut[x][k]) continue;
+          if (pred(x, k) !== pivot) continue;
+          edgeCut[x][k] = true;
+          before[pivot].add(x);
+          cutAny = true;
+        }
+      }
+    }
+    if (!cutAny) break;
+  }
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const done = new Array(n).fill(false);
+    const order = [];
+    let stuck = false;
+    while (order.length < n) {
+      let pick = -1;
+      for (let a = 0; a < n; a++) {
+        const i = byId[a];
+        if (done[i]) continue;
+        let ok = true;
+        if (attempt === 0) for (const x of before[i]) if (!done[x]) { ok = false; break; }
+        if (ok) for (let k = 0; k < 2; k++)
+          if (edgeOn[i][k] && !edgeCut[i][k] && !done[pred(i, k)]) { ok = false; break; }
+        if (ok) { pick = i; break; }
+      }
+      if (pick < 0) { stuck = true; break; }
+      order.push(pick); done[pick] = true;
+    }
+    if (!stuck) { SimState.execOrder = order; return; }
+    if (attempt === 1) {
+      console.warn('[PLC] AVISO: orden de ejecución incompleto, se completa por ID');
+      for (let a = 0; a < n; a++) { const i = byId[a]; if (!done[i]) { order.push(i); done[i] = true; } }
+      SimState.execOrder = order;
+    }
+  }
 }
 
 // mirrors static int getInputPhysIndex(const String& name)
@@ -97,6 +224,7 @@ function _memReset() {
 function runtimeClear() {
   SimState.nodeCount = 0;
   SimState.nodes = [];
+  SimState.execOrder = [];
   _memReset();
   // plcMutex: no-op in sim
 }
@@ -112,18 +240,18 @@ function runtimeClear() {
 // El simulador opera en EXEC_NODE mode.
 // =============================================================
 function parseProgram(jsonStr) {
-  runtimeClear();
-
   if (!jsonStr || jsonStr.length === 0) {
+    runtimeClear();
     console.warn('[PLC] parseProgram: JSON vacío');
     return;
   }
 
+  // Transaccional: si el JSON es inválido se conserva el programa anterior
   let doc;
   try {
     doc = JSON.parse(jsonStr);
   } catch (e) {
-    console.error('[PLC] JSON parse error:', e);
+    console.error('[PLC] JSON parse error (programa anterior conservado):', e);
     return;
   }
 
@@ -136,108 +264,119 @@ function parseProgram(jsonStr) {
   }
 
   if (!data) {
-    console.error('[PLC] parseProgram: no se encontró drawflow.Home.data');
+    console.error('[PLC] parseProgram: no se encontró drawflow.Home.data (programa anterior conservado)');
     return;
   }
 
+  runtimeClear();
+  const conns = [];   // por nodo: [{target:id, port:int}]
+
   // ── PASADA 1: cargar nodos ───────────────────────────────────
-  // mirrors firmware: readInt / readULong lambdas exactos
   for (const key of Object.keys(data)) {
-    if (SimState.nodeCount >= 64 /* MAX_NODES */) break;
+    if (SimState.nodeCount >= 64 /* MAX_NODES */) {
+      console.warn('[PLC] AVISO: el programa tiene más de 64 nodos; se ignoran los restantes');
+      break;
+    }
 
     const node = data[key];
     const nd = makePlcNode();
 
-    nd.id   = parseInt(node.id) || parseInt(key) || 0;
+    nd.id   = _jsonToInt(node.id);
     nd.name = (node.name || '').toLowerCase();
+    nd.type = nd.name;
 
-    // readInt: handles both string and number values — mirrors firmware lambda
-    const readInt = (k) => {
+    const readInt = (k) => _jsonToInt(node.data?.[k]);
+    // Valor por defecto SOLO si falta o está vacío (un 0 explícito es válido)
+    const readIntDef = (k, def) => {
       const v = node.data?.[k];
-      if (v == null) return 0;
-      const n = parseInt(v, 10);
-      return isNaN(n) ? 0 : n;
+      if (v == null) return def;
+      if (typeof v === 'string' && v === '') return def;
+      return _jsonToInt(v);
     };
-
-    // readULong: same as readInt (no negatives, ms values)
-    const readULong = (k) => {
-      const v = node.data?.[k];
-      if (v == null) return 0;
-      const n = parseInt(v, 10);
-      return isNaN(n) ? 0 : Math.max(0, n);
-    };
+    const readULong = (k) => Math.max(0, readInt(k));
 
     nd.value  = readInt('value');
     nd.outIdx = readInt('out');
     nd.preset = readULong('time');
-
-    // op is always string — mirrors: n.op = node["data"]["op"] | ">"
     nd.op = (node.data?.op) || '>';
-
-    // Counter preset (read as 'pv' key) — mirrors: n.counterVal = readInt("pv")
     nd.counterVal = readInt('pv');
-    // NOTE: firmware stores current count in intValue, preset in value.
-    // For CTU/CTD, value is the PV (preset value) read via readInt('value').
-    // counterVal is read but not used for logic — intValue is the counter.
 
-    // Scale parameters — mirrors firmware defaults
-    nd.scaleInMin  = readInt('inMin');
-    nd.scaleInMax  = readInt('inMax');  if (nd.scaleInMax  === 0) nd.scaleInMax  = 4095;
-    nd.scaleOutMin = readInt('outMin');
-    nd.scaleOutMax = readInt('outMax'); if (nd.scaleOutMax === 0) nd.scaleOutMax = 100;
+    nd.scaleInMin  = readIntDef('inMin', 0);
+    nd.scaleInMax  = readIntDef('inMax', 4095);
+    nd.scaleOutMin = readIntDef('outMin', 0);
+    nd.scaleOutMax = readIntDef('outMax', 100);
 
-    // Collect output connections (target Drawflow node IDs)
     nd.outputs = [];
     nd.outputCount = 0;
+    const cl = [];
     if (node.outputs) {
       for (const portKey of Object.keys(node.outputs)) {
         const port = node.outputs[portKey];
         if (port?.connections) {
           for (const conn of port.connections) {
-            const targetId = parseInt(conn.node, 10);
-            if (!isNaN(targetId) && nd.outputCount < 8 /* MAX_LINKS */) {
-              nd.outputs.push(targetId);
-              nd.outputCount++;
-            }
+            const targetId = _jsonToInt(conn.node);
+            const m = /^input_(\d+)$/.exec(conn.output || '');
+            cl.push({ target: targetId, port: m ? parseInt(m[1], 10) - 1 : -1 });
           }
         }
       }
     }
+    conns.push(cl);
 
-    console.log(`[PLC] Nodo[${SimState.nodeCount}] id=${nd.id} name=${nd.name} preset=${nd.preset} outIdx=${nd.outIdx}`);
     SimState.nodes.push(nd);
     SimState.nodeCount++;
   }
 
-  // ── PASADA 2: resolver conexiones input1/input2 ──────────────
-  // mirrors firmware PASADA 2 exactamente (O(n²))
-  for (let i = 0; i < SimState.nodeCount; i++) {
-    SimState.nodes[i].input1 = -1;
-    SimState.nodes[i].input2 = -1;
-    let count = 0;
+  // ── PASADA 2: resolver conexiones por PUERTO ────────────────
+  // Drivers en orden de ID ascendente (reparto de respaldo determinista)
+  const nodes = SimState.nodes, nc = SimState.nodeCount;
+  const byId = [];
+  for (let i = 0; i < nc; i++) byId.push(i);
+  byId.sort((x, y) => nodes[x].id - nodes[y].id || x - y);
 
-    for (let j = 0; j < SimState.nodeCount; j++) {
-      for (let k = 0; k < SimState.nodes[j].outputCount; k++) {
-        const targetIdx = _getNodeIndexById(SimState.nodes[j].outputs[k]);
-        if (targetIdx === i) {
-          if      (count === 0) SimState.nodes[i].input1 = j;
-          else if (count === 1) SimState.nodes[i].input2 = j;
-          count++;
-        }
+  for (const j of byId) {
+    for (const c of conns[j]) {
+      const t = _getNodeIndexById(c.target);
+      if (t < 0) continue;
+      if (nodes[j].outputCount < 8 /* MAX_LINKS */) {
+        nodes[j].outputs.push(c.target);
+        nodes[j].outputCount++;
+      }
+      const tn = nodes[t];
+      if      (c.port === 0 && tn.input1 < 0) tn.input1 = j;
+      else if (c.port === 1 && tn.input2 < 0) tn.input2 = j;
+      else {
+        // Cable sin puerto válido, o segundo cable al MISMO puerto: se usa el
+        // puerto libre (igual que el firmware anterior) o se descarta; se avisa.
+        if      (tn.input1 < 0) tn.input1 = j;
+        else if (tn.input2 < 0) tn.input2 = j;
+        if (c.port === 0 || c.port === 1)
+          console.warn(`[PLC] AVISO: nodo ${tn.id}, puerto ${c.port + 1} con mas de un cable (nodo ${nodes[j].id})`);
       }
     }
   }
 
-  // ── PASADA 3: registrar PWM ──────────────────────────────────
-  for (let i = 0; i < SimState.nodeCount; i++) {
-    if (SimState.nodes[i].name === 'pwm') {
-      plcRegisterPWM(SimState.nodes[i].outIdx);
-      plcMarkPinAsPWM(SimState.nodes[i].outIdx);
-      console.log(`[PLC] PWM registrado en outIdx=${SimState.nodes[i].outIdx}`);
+  // ── PASADA 3: idioma heredado SR(S=X, R=NOT X) = registro de 1 scan ──
+  for (let i = 0; i < nc; i++) {
+    if (nodes[i].type !== 'sr') continue;
+    const a = nodes[i].input1, b = nodes[i].input2;
+    if (a < 0 || b < 0) continue;
+    if (nodes[b].type === 'not' && nodes[b].input1 === a && nodes[b].input2 < 0)
+      nodes[i].type = 'prev';
+  }
+
+  // ── PASADA 4: orden de ejecución ─────────────────────────────
+  buildExecOrder();
+
+  // ── PASADA 5: registrar PWM ──────────────────────────────────
+  for (let i = 0; i < nc; i++) {
+    if (nodes[i].type === 'pwm') {
+      plcRegisterPWM(nodes[i].outIdx);
+      plcMarkPinAsPWM(nodes[i].outIdx);
     }
   }
 
-  console.log(`[PLC] parseProgram OK: ${SimState.nodeCount} nodos`);
+  console.log(`[PLC] parseProgram OK: ${nc} nodos`);
 }
 
 // =============================================================
@@ -299,297 +438,188 @@ function plcScan() {
   }
 
   // =========================================================
-  // FASE 2: Lógica combinacional
-  // mirrors plcScanNodes() FASE 2
+  // FASE 2: evaluar cada nodo una vez, en orden de dependencias
+  // mirrors plcScan() FASE 2 (switch por tipo)
   // =========================================================
-  for (let i = 0; i < nc; i++) {
-    const nm = nodes[i].name;
+  const order = SimState.execOrder || [];
+  for (let e = 0; e < order.length; e++) {
+    const n = nodes[order[e]];
+    switch (n.type) {
+      case 'and': n.state = _inState(n, 0) && _inState(n, 1); break;
+      case 'or':  n.state = _inState(n, 0) || _inState(n, 1); break;
+      case 'not': n.state = !_inState(n, 0); break;
+      case 'xor': n.state = _inState(n, 0) !== _inState(n, 1); break;
 
-    if (nm === 'and') {
-      const a = nodes[i].input1 >= 0 ? nodes[nodes[i].input1].state : false;
-      const b = nodes[i].input2 >= 0 ? nodes[nodes[i].input2].state : false;
-      nodes[i].state = a && b;
-    }
-    else if (nm === 'or') {
-      const a = nodes[i].input1 >= 0 ? nodes[nodes[i].input1].state : false;
-      const b = nodes[i].input2 >= 0 ? nodes[nodes[i].input2].state : false;
-      nodes[i].state = a || b;
-    }
-    else if (nm === 'not') {
-      const a = nodes[i].input1 >= 0 ? nodes[nodes[i].input1].state : false;
-      nodes[i].state = !a;
-    }
-    else if (nm === 'xor') {
-      const a = nodes[i].input1 >= 0 ? nodes[nodes[i].input1].state : false;
-      const b = nodes[i].input2 >= 0 ? nodes[nodes[i].input2].state : false;
-      nodes[i].state = a !== b;   // XOR: a !== b (idéntico a a^b para bool)
-    }
-    else if (nm === 'cmp') {
-      const val1 = _getNodeIntValue(nodes[i].input1);
-      // CMP: usa input2 si está conectado, sino usa nodes[i].value
-      // mirrors: int val2 = (nodes[i].input2 >= 0) ? getNodeIntValue(...) : nodes[i].value
-      const val2 = nodes[i].input2 >= 0
-                   ? _getNodeIntValue(nodes[i].input2)
-                   : nodes[i].value;
-      const op = nodes[i].op;
-      if      (op === '>')  nodes[i].state = (val1 >  val2);
-      else if (op === '<')  nodes[i].state = (val1 <  val2);
-      else if (op === '>=') nodes[i].state = (val1 >= val2);
-      else if (op === '<=') nodes[i].state = (val1 <= val2);
-      else if (op === '==') nodes[i].state = (val1 === val2);
-      else if (op === '!=') nodes[i].state = (val1 !== val2);
-      else                  nodes[i].state = false;
-    }
-  }
+      case 'cmp': {
+        const val1 = _getNodeIntValue(n.input1);
+        const val2 = n.input2 >= 0 ? _getNodeIntValue(n.input2) : n.value;
+        const op = n.op;
+        if      (op === '>')  n.state = (val1 >  val2);
+        else if (op === '<')  n.state = (val1 <  val2);
+        else if (op === '>=') n.state = (val1 >= val2);
+        else if (op === '<=') n.state = (val1 <= val2);
+        else if (op === '==') n.state = (val1 === val2);
+        else if (op === '!=') n.state = (val1 !== val2);
+        else                  n.state = false;
+        break;
+      }
 
-  // =========================================================
-  // FASE 3a: Timers IEC 61131-3 (TON, TOF, TP, BLINK)
-  // mirrors plcScanNodes() FASE 3a — código idéntico instrucción a instrucción
-  // =========================================================
-  for (let i = 0; i < nc; i++) {
-    const nm = nodes[i].name;
-    const IN = nodes[i].input1 >= 0 ? nodes[nodes[i].input1].state : false;
-
-    // ── TON — Timer On Delay ──────────────────────────────────
-    // mirrors:
-    //   if (IN) {
-    //     if (!timerRunning) { timerRunning=true; timerDone=false; timerStart=now; state=false; }
-    //     else if (now-timerStart >= preset) { state=true; timerDone=true; }
-    //   } else { timerRunning=false; timerDone=false; state=false; }
-    if (nm === 'ton') {
-      if (IN) {
-        if (!nodes[i].timerRunning) {
-          nodes[i].timerRunning = true;
-          nodes[i].timerDone    = false;
-          nodes[i].timerStart   = now;
-          nodes[i].state        = false;
-        } else if ((now - nodes[i].timerStart) >= nodes[i].preset) {
-          nodes[i].state     = true;
-          nodes[i].timerDone = true;
+      case 'ton': {
+        const IN = _inState(n, 0);
+        if (IN) {
+          if (!n.timerRunning) {
+            n.timerRunning = true; n.timerDone = false; n.timerStart = now; n.state = false;
+          } else if ((now - n.timerStart) >= n.preset) {
+            n.state = true; n.timerDone = true;
+          }
+        } else {
+          n.timerRunning = false; n.timerDone = false; n.state = false;
         }
-      } else {
-        nodes[i].timerRunning = false;
-        nodes[i].timerDone    = false;
-        nodes[i].state        = false;
+        break;
       }
-    }
 
-    // ── TOF — Timer Off Delay ─────────────────────────────────
-    // mirrors firmware TOF exactly (rising/falling edge detection)
-    else if (nm === 'tof') {
-      const risingEdge  =  IN && !nodes[i].timerPrevIn;
-      const fallingEdge = !IN &&  nodes[i].timerPrevIn;
-
-      if (risingEdge) {
-        nodes[i].state        = true;
-        nodes[i].timerRunning = false;
-        nodes[i].timerDone    = false;
-      } else if (fallingEdge) {
-        nodes[i].timerRunning = true;
-        nodes[i].timerDone    = false;
-        nodes[i].timerStart   = now;
-        nodes[i].state        = true;
-      } else if (!IN && nodes[i].timerRunning) {
-        if ((now - nodes[i].timerStart) >= nodes[i].preset) {
-          nodes[i].state        = false;
-          nodes[i].timerRunning = false;
-          nodes[i].timerDone    = true;
+      case 'tof': {
+        const IN = _inState(n, 0);
+        const risingEdge  =  IN && !n.timerPrevIn;
+        const fallingEdge = !IN &&  n.timerPrevIn;
+        if (risingEdge) {
+          n.state = true; n.timerRunning = false; n.timerDone = false;
+        } else if (fallingEdge) {
+          n.timerRunning = true; n.timerDone = false; n.timerStart = now; n.state = true;
+        } else if (!IN && n.timerRunning) {
+          if ((now - n.timerStart) >= n.preset) {
+            n.state = false; n.timerRunning = false; n.timerDone = true;
+          }
+        } else if (!IN && n.timerDone) {
+          n.state = false;
+        } else if (IN) {
+          n.state = true;
         }
-      } else if (!IN && nodes[i].timerDone) {
-        nodes[i].state = false;
-      } else if (IN) {
-        nodes[i].state = true;
+        n.timerPrevIn = IN;
+        break;
       }
-      nodes[i].timerPrevIn = IN;
-    }
 
-    // ── TP — Timer Pulse ──────────────────────────────────────
-    // mirrors firmware TP exactly (one-shot on rising edge)
-    else if (nm === 'tp') {
-      const risingEdge = IN && !nodes[i].timerPrevIn;
-
-      if (risingEdge && !nodes[i].timerRunning) {
-        nodes[i].timerRunning = true;
-        nodes[i].timerDone    = false;
-        nodes[i].timerStart   = now;
-        nodes[i].state        = true;
-      } else if (nodes[i].timerRunning) {
-        if ((now - nodes[i].timerStart) >= nodes[i].preset) {
-          nodes[i].timerRunning = false;
-          nodes[i].timerDone    = true;
-          nodes[i].state        = false;
+      case 'tp': {
+        const IN = _inState(n, 0);
+        const risingEdge = IN && !n.timerPrevIn;
+        if (risingEdge && !n.timerRunning) {
+          n.timerRunning = true; n.timerDone = false; n.timerStart = now; n.state = true;
+        } else if (n.timerRunning) {
+          if ((now - n.timerStart) >= n.preset) {
+            n.timerRunning = false; n.timerDone = true; n.state = false;
+          }
+        } else if (n.timerDone && !IN) {
+          n.timerDone = false;
         }
-      } else if (nodes[i].timerDone && !IN) {
-        // Reset timerDone when IN goes low (allows re-triggering)
-        nodes[i].timerDone = false;
+        n.timerPrevIn = IN;
+        break;
       }
-      nodes[i].timerPrevIn = IN;
-    }
 
-    // ── BLINK — oscilador de ciclo configurable ───────────────
-    // mirrors firmware BLINK:
-    //   EN = input1 (or true if disconnected)
-    //   toggles blinkState every preset ms
-    else if (nm === 'blink') {
-      // NOTE: BLINK reads EN from input1, not IN computed above
-      const EN = nodes[i].input1 >= 0 ? nodes[nodes[i].input1].state : true;
-
-      if (!EN) {
-        nodes[i].state     = false;
-        nodes[i].blinkLast = now;
-      } else {
-        if ((now - nodes[i].blinkLast) >= nodes[i].preset) {
-          nodes[i].blinkState = !nodes[i].blinkState;
-          nodes[i].blinkLast  = now;
+      case 'blink': {
+        const EN = n.input1 >= 0 ? nodes[n.input1].state : true;
+        if (!EN) {
+          n.state = false; n.blinkLast = now;
+        } else {
+          if ((now - n.blinkLast) >= n.preset) {
+            n.blinkState = !n.blinkState; n.blinkLast = now;
+          }
+          n.state = n.blinkState;
         }
-        nodes[i].state = nodes[i].blinkState;
+        break;
       }
-    }
-  }
 
-  // =========================================================
-  // FASE 3b: Contadores IEC (CTU, CTD)
-  // mirrors plcScanNodes() FASE 3b
-  // =========================================================
-  for (let i = 0; i < nc; i++) {
-    const nm = nodes[i].name;
-
-    // ── CTU — Counter Up ─────────────────────────────────────
-    // CU = input1 (flanco ascendente cuenta), R = input2 (reset)
-    // Q = (intValue >= value)   [value = PV preset]
-    // mirrors:
-    //   if (R) intValue=0;
-    //   else if (CU && !counterPrevCU) intValue++;
-    //   state = (intValue >= value);
-    //   counterPrevCU = CU;
-    if (nm === 'ctu') {
-      const CU = nodes[i].input1 >= 0 ? nodes[nodes[i].input1].state : false;
-      const R  = nodes[i].input2 >= 0 ? nodes[nodes[i].input2].state : false;
-
-      if (R) {
-        nodes[i].intValue = 0;
-      } else if (CU && !nodes[i].counterPrevCU) {
-        nodes[i].intValue++;
+      case 'ctu': {
+        const CU = _inState(n, 0), R = _inState(n, 1);
+        if (R) n.intValue = 0;
+        else if (CU && !n.counterPrevCU) n.intValue++;
+        n.state = (n.intValue >= n.value);
+        n.counterPrevCU = CU;
+        break;
       }
-      nodes[i].state        = (nodes[i].intValue >= nodes[i].value);
-      nodes[i].counterPrevCU = CU;
-    }
 
-    // ── CTD — Counter Down ────────────────────────────────────
-    // CD = input1 (flanco ascendente decrementa), LD = input2 (carga preset)
-    // Q = (intValue <= 0)
-    // mirrors:
-    //   if (LD) intValue = value;
-    //   else if (CD && !counterPrevCD) if (intValue>0) intValue--;
-    //   state = (intValue <= 0);
-    //   counterPrevCD = CD;
-    else if (nm === 'ctd') {
-      const CD = nodes[i].input1 >= 0 ? nodes[nodes[i].input1].state : false;
-      const LD = nodes[i].input2 >= 0 ? nodes[nodes[i].input2].state : false;
-
-      if (LD) {
-        nodes[i].intValue = nodes[i].value;
-      } else if (CD && !nodes[i].counterPrevCD) {
-        if (nodes[i].intValue > 0) nodes[i].intValue--;
+      case 'ctd': {
+        const CD = _inState(n, 0), LD = _inState(n, 1);
+        if (LD) n.intValue = n.value;
+        else if (CD && !n.counterPrevCD) { if (n.intValue > 0) n.intValue--; }
+        n.state = (n.intValue <= 0);
+        n.counterPrevCD = CD;
+        break;
       }
-      nodes[i].state        = (nodes[i].intValue <= 0);
-      nodes[i].counterPrevCD = CD;
-    }
-  }
 
-  // =========================================================
-  // FASE 3c: Memorias / Biestables (SR, RS)
-  // mirrors plcScanNodes() FASE 3c
-  // =========================================================
-  for (let i = 0; i < nc; i++) {
-    const nm = nodes[i].name;
-    const S = nodes[i].input1 >= 0 ? nodes[nodes[i].input1].state : false;
-    const R = nodes[i].input2 >= 0 ? nodes[nodes[i].input2].state : false;
-
-    // ── SR — Set dominante: S=1→Q=1, R=1 y S=0→Q=0 ──────────
-    if (nm === 'sr') {
-      if (S)      nodes[i].state = true;
-      else if (R) nodes[i].state = false;
-    }
-    // ── RS — Reset dominante: R=1→Q=0, S=1 y R=0→Q=1 ────────
-    else if (nm === 'rs') {
-      if (R)      nodes[i].state = false;
-      else if (S) nodes[i].state = true;
-    }
-  }
-
-  // =========================================================
-  // FASE 3d: Detección de flancos (R_TRIG, F_TRIG)
-  // mirrors plcScanNodes() FASE 3d
-  // =========================================================
-  for (let i = 0; i < nc; i++) {
-    const nm = nodes[i].name;
-    const IN = nodes[i].input1 >= 0 ? nodes[nodes[i].input1].state : false;
-
-    if (nm === 'r_trig') {
-      nodes[i].state      = IN && !nodes[i].trigPrevIn;
-      nodes[i].trigPrevIn = IN;
-    }
-    else if (nm === 'f_trig') {
-      nodes[i].state      = !IN && nodes[i].trigPrevIn;
-      nodes[i].trigPrevIn = IN;
-    }
-  }
-
-  // =========================================================
-  // FASE 3e: SCALE — escalado lineal ADC → unidades físicas
-  // mirrors plcScanNodes() FASE 3e
-  //   scaled = (raw-inMin) * (outMax-outMin) / (inMax-inMin) + outMin
-  //   constrain to [min(outMin,outMax), max(outMin,outMax)]
-  // NOTE: firmware uses integer division (long), we use Math.round() to match
-  // =========================================================
-  for (let i = 0; i < nc; i++) {
-    if (nodes[i].name !== 'scale') continue;
-
-    const raw    = nodes[i].input1 >= 0 ? nodes[nodes[i].input1].intValue : 0;
-    const inMin  = nodes[i].scaleInMin;
-    const inMax  = nodes[i].scaleInMax;
-    const outMin = nodes[i].scaleOutMin;
-    const outMax = nodes[i].scaleOutMax;
-
-    if (inMax === inMin) {
-      nodes[i].intValue = outMin;
-    } else {
-      const scaled = Math.round((raw - inMin) * (outMax - outMin) / (inMax - inMin) + outMin);
-      nodes[i].intValue = _constrain(scaled, Math.min(outMin, outMax), Math.max(outMin, outMax));
-    }
-    nodes[i].state = (nodes[i].intValue > 0);
-  }
-
-  // =========================================================
-  // FASE 4: Nodos PWM
-  // mirrors plcScanNodes() FASE 4
-  // =========================================================
-  for (let i = 0; i < nc; i++) {
-    if (nodes[i].name !== 'pwm') continue;
-
-    let value = nodes[i].value;
-    if (nodes[i].input1 >= 0) {
-      const src = nodes[nodes[i].input1];
-      if (src.name === 'analog1') {
-        value = src.intValue;
-      } else {
-        value = src.state ? 4095 : 0;
+      case 'sr': {
+        const S = _inState(n, 0), R = _inState(n, 1);
+        if (S) n.state = true; else if (R) n.state = false;
+        break;
       }
+
+      case 'rs': {
+        const S = _inState(n, 0), R = _inState(n, 1);
+        if (R) n.state = false; else if (S) n.state = true;
+        break;
+      }
+
+      case 'r_trig': {
+        const IN = _inState(n, 0);
+        n.state = IN && !n.trigPrevIn; n.trigPrevIn = IN;
+        break;
+      }
+
+      case 'f_trig': {
+        const IN = _inState(n, 0);
+        n.state = !IN && n.trigPrevIn; n.trigPrevIn = IN;
+        break;
+      }
+
+      case 'scale': {
+        // Aritmética entera de 64 bits, división truncada hacia cero (= firmware)
+        const raw    = n.input1 >= 0 ? BigInt(nodes[n.input1].intValue) : 0n;
+        const inMin  = BigInt(n.scaleInMin),  inMax  = BigInt(n.scaleInMax);
+        const outMin = BigInt(n.scaleOutMin), outMax = BigInt(n.scaleOutMax);
+        if (inMax === inMin) {
+          n.intValue = Number(BigInt.asIntN(32, outMin));
+        } else {
+          let scaled = (raw - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;  // BigInt: trunca hacia 0
+          const lo = outMin < outMax ? outMin : outMax;
+          const hi = outMin < outMax ? outMax : outMin;
+          if (scaled < lo) scaled = lo;
+          if (scaled > hi) scaled = hi;
+          n.intValue = Number(BigInt.asIntN(32, scaled));
+        }
+        n.state = (n.intValue > 0);
+        break;
+      }
+
+      case 'pwm': {
+        let value = n.value;
+        if (n.input1 >= 0) {
+          const src = nodes[n.input1];
+          value = _isNumericSource(src.type) ? src.intValue : (src.state ? 4095 : 0);
+        }
+        n.intValue = value;
+        break;
+      }
+
+      case 'output1': case 'output2': case 'output3': case 'output4':
+        n.state = _inState(n, 0);
+        break;
+
+      default: break;
     }
-    plcWritePWM(nodes[i].outIdx, value);
   }
 
-  // =========================================================
-  // FASE 5: Escribir salidas digitales
-  // mirrors plcScanNodes() FASE 5
-  // =========================================================
+  // FASE 3: registros de 1 scan (NT_PREV)
+  for (let i = 0; i < nc; i++)
+    if (nodes[i].type === 'prev') nodes[i].state = _inState(nodes[i], 0);
+
+  // FASE 4: escribir salidas físicas y PWM
+  // Dos pasadas: en el hardware plcWriteOutput() ignora los pines bajo PWM,
+  // de modo que el PWM siempre gana sobre una salida digital en el mismo pin.
   for (let i = 0; i < nc; i++) {
     const outPhys = _getOutputPhysIndex(nodes[i].name);
-    if (outPhys < 0) continue;
-    const val = nodes[i].input1 >= 0 ? nodes[nodes[i].input1].state : false;
-    nodes[i].state = val;
-    plcWriteOutput(outPhys, val);
+    if (outPhys >= 0) plcWriteOutput(outPhys, nodes[i].state);
+  }
+  for (let i = 0; i < nc; i++) {
+    if (nodes[i].type === 'pwm') plcWritePWM(nodes[i].outIdx, nodes[i].intValue);
   }
 
   // =========================================================

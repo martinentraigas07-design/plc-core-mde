@@ -22,7 +22,19 @@ void handleSave()
     return;
   }
 
-  File f = SPIFFS.open("/program.json", "w");
+  const String& body = server.arg("plain");
+
+  if (body.length() == 0)
+  {
+    server.send(400, "text/plain", "Empty body");
+    return;
+  }
+
+  // Escritura transaccional: primero a un archivo temporal y recién cuando
+  // quedó completo reemplaza al programa. Antes se abría /program.json en
+  // modo "w" (lo trunca) y un corte o un error de escritura dejaba el PLC
+  // sin programa.
+  File f = SPIFFS.open("/program.tmp", "w");
 
   if (!f)
   {
@@ -30,9 +42,22 @@ void handleSave()
     return;
   }
 
-  f.print(server.arg("plain"));
-
+  size_t written = f.print(body);
   f.close();
+
+  if (written != body.length())
+  {
+    SPIFFS.remove("/program.tmp");
+    server.send(500, "text/plain", "Write incomplete (SPIFFS full?)");
+    return;
+  }
+
+  SPIFFS.remove("/program.json");
+  if (!SPIFFS.rename("/program.tmp", "/program.json"))
+  {
+    server.send(500, "text/plain", "Rename failed");
+    return;
+  }
 
   server.send(200, "text/plain", "Saved OK");
 }

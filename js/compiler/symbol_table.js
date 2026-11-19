@@ -255,8 +255,11 @@
 
     /* ── Check 4: topological order sanity ──────────────── */
     /* A minimal cycle check: if any node references itself */
-    irNodes.forEach(function(node) {
-      if (node.in1 === node.id || node.in2 === node.id) {
+    /* E7: in1/in2 son ÍNDICES en irNodes (no ids de Drawflow). Antes se comparaban con node.id y se
+       bloqueaba el guardado FBD con un SELF_LOOP falso cuando el driver de un nodo era el nodo de id+1
+       (p. ej. RS id 3 alimentado por un NOT creado después, id 4 = índice 3). */
+    irNodes.forEach(function(node, idx) {
+      if (node.in1 === idx || node.in2 === idx) {
         errors.push({
           level:   'CRITICAL',
           code:    'SELF_LOOP',

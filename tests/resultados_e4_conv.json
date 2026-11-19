@@ -1,0 +1,1144 @@
+[
+ {
+  "name": "manual ch01_03#1",
+  "status": "OK",
+  "detail": "1 renglones, marcas=0, 289 pasos, 0 bloques con estado pareados",
+  "dead": 0,
+  "paired": 0,
+  "steps": 289
+ },
+ {
+  "name": "manual ch01_03#2",
+  "status": "OK",
+  "detail": "1 renglones, marcas=0, 289 pasos, 0 bloques con estado pareados",
+  "dead": 0,
+  "paired": 0,
+  "steps": 289
+ },
+ {
+  "name": "manual ch01_03#3",
+  "status": "OK",
+  "detail": "1 renglones, marcas=0, 289 pasos, 0 bloques con estado pareados",
+  "dead": 0,
+  "paired": 0,
+  "steps": 289
+ },
+ {
+  "name": "manual ch01_03#4",
+  "status": "OK",
+  "detail": "3 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch01_03#5",
+  "status": "OK",
+  "detail": "3 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch01_03#6",
+  "status": "OK",
+  "detail": "3 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch01_03#7",
+  "status": "OK",
+  "detail": "4 renglones, marcas=1, 289 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 289
+ },
+ {
+  "name": "manual ch01_03#10",
+  "status": "RECHAZADO",
+  "detail": "Feedback loop detected: Feedback loop (node ids: 4,5,6,7,8,9,10,11) with 2 memory blocks (rs+sr): the FBD behaviour depends on the evaluation order, which is tied to the internal node identifiers, so no Ladder can reproduce it in general. Rewrite the feedback with an SR/RS latch (S/R inputs) so the "
+ },
+ {
+  "name": "manual ch01_03#11",
+  "status": "OK",
+  "detail": "4 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch01_03#12",
+  "status": "OK",
+  "detail": "4 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch01_03#13",
+  "status": "OK",
+  "detail": "3 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch01_03#16",
+  "status": "OK",
+  "detail": "4 renglones, marcas=0, 321 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 321
+ },
+ {
+  "name": "manual ch01_03#17",
+  "status": "OK",
+  "detail": "5 renglones, marcas=1, 289 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 289
+ },
+ {
+  "name": "manual ch01_03#19",
+  "status": "OK",
+  "detail": "3 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch04#1",
+  "status": "OK",
+  "detail": "4 renglones, marcas=0, 321 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 321
+ },
+ {
+  "name": "manual ch04#2",
+  "status": "OK",
+  "detail": "5 renglones, marcas=0, 289 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 289
+ },
+ {
+  "name": "manual ch04#3",
+  "status": "OK",
+  "detail": "5 renglones, marcas=0, 321 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 321
+ },
+ {
+  "name": "manual ch04#4",
+  "status": "OK",
+  "detail": "4 renglones, marcas=0, 321 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 321
+ },
+ {
+  "name": "manual ch04#5",
+  "status": "OK",
+  "detail": "5 renglones, marcas=0, 289 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 289
+ },
+ {
+  "name": "manual ch04#6",
+  "status": "OK",
+  "detail": "5 renglones, marcas=0, 353 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 353
+ },
+ {
+  "name": "manual ch05#1",
+  "status": "OK",
+  "detail": "6 renglones, marcas=0, 321 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 321
+ },
+ {
+  "name": "manual ch05#2",
+  "status": "OK",
+  "detail": "8 renglones, marcas=1, 289 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 289
+ },
+ {
+  "name": "manual ch05#3",
+  "status": "OK",
+  "detail": "3 renglones, marcas=0, 289 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 289
+ },
+ {
+  "name": "manual ch05#4",
+  "status": "OK",
+  "detail": "3 renglones, marcas=0, 289 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 289
+ },
+ {
+  "name": "manual ch05#5",
+  "status": "OK",
+  "detail": "4 renglones, marcas=0, 289 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 289
+ },
+ {
+  "name": "manual ch05#6",
+  "status": "OK",
+  "detail": "5 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch06#1",
+  "status": "OK",
+  "detail": "2 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch06#2",
+  "status": "OK",
+  "detail": "4 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch06#3",
+  "status": "OK",
+  "detail": "6 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch06#4",
+  "status": "OK",
+  "detail": "3 renglones, marcas=0, 289 pasos, 0 bloques con estado pareados",
+  "dead": 0,
+  "paired": 0,
+  "steps": 289
+ },
+ {
+  "name": "manual ch06#5",
+  "status": "OK",
+  "detail": "3 renglones, marcas=0, 289 pasos, 0 bloques con estado pareados",
+  "dead": 0,
+  "paired": 0,
+  "steps": 289
+ },
+ {
+  "name": "manual ch06#6",
+  "status": "OK",
+  "detail": "7 renglones, marcas=0, 289 pasos, 0 bloques con estado pareados",
+  "dead": 0,
+  "paired": 0,
+  "steps": 289
+ },
+ {
+  "name": "manual ch07#1",
+  "status": "OK",
+  "detail": "6 renglones, marcas=0, 321 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 321
+ },
+ {
+  "name": "manual ch07#2",
+  "status": "OK",
+  "detail": "6 renglones, marcas=0, 321 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 321
+ },
+ {
+  "name": "manual ch07#5",
+  "status": "RECHAZADO",
+  "detail": "Node 7 (and): AND with an unconnected input (always false) cannot be shown as a contact chain"
+ },
+ {
+  "name": "manual ch07#6",
+  "status": "OK",
+  "detail": "7 renglones, marcas=0, 321 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 321
+ },
+ {
+  "name": "manual ch07#8",
+  "status": "OK",
+  "detail": "7 renglones, marcas=0, 321 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 321
+ },
+ {
+  "name": "manual ch07#9",
+  "status": "OK",
+  "detail": "6 renglones, marcas=0, 321 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 321
+ },
+ {
+  "name": "manual ch07#10",
+  "status": "OK",
+  "detail": "6 renglones, marcas=0, 321 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 321
+ },
+ {
+  "name": "manual ch07#11",
+  "status": "OK",
+  "detail": "6 renglones, marcas=0, 321 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 321
+ },
+ {
+  "name": "manual ch07#13",
+  "status": "OK",
+  "detail": "6 renglones, marcas=0, 321 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 321
+ },
+ {
+  "name": "manual ch07#14",
+  "status": "OK",
+  "detail": "10 renglones, marcas=0, 289 pasos, 0 bloques con estado pareados",
+  "dead": 0,
+  "paired": 0,
+  "steps": 289
+ },
+ {
+  "name": "manual ch08#3",
+  "status": "OK",
+  "detail": "4 renglones, marcas=1, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch08#4",
+  "status": "OK",
+  "detail": "5 renglones, marcas=0, 321 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 321
+ },
+ {
+  "name": "manual ch08#5",
+  "status": "OK",
+  "detail": "5 renglones, marcas=0, 289 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 289
+ },
+ {
+  "name": "manual ch08#6",
+  "status": "RECHAZADO",
+  "detail": "Feedback loop detected: Feedback loop (node ids: 3,4,5) with 2 memory blocks (ton+rs): the FBD behaviour depends on the evaluation order, which is tied to the internal node identifiers, so no Ladder can reproduce it in general. Rewrite the feedback with an SR/RS latch (S/R inputs) so the program can"
+ },
+ {
+  "name": "manual ch08#7",
+  "status": "RECHAZADO",
+  "detail": "Feedback loop detected: Feedback loop (node ids: 3,4,5) with 2 memory blocks (ton+rs): the FBD behaviour depends on the evaluation order, which is tied to the internal node identifiers, so no Ladder can reproduce it in general. Rewrite the feedback with an SR/RS latch (S/R inputs) so the program can"
+ },
+ {
+  "name": "manual ch08#8",
+  "status": "OK",
+  "detail": "4 renglones, marcas=0, 321 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 321
+ },
+ {
+  "name": "manual ch08#9",
+  "status": "OK",
+  "detail": "4 renglones, marcas=0, 321 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 321
+ },
+ {
+  "name": "manual ch08#10",
+  "status": "OK",
+  "detail": "9 renglones, marcas=0, 321 pasos, 4 bloques con estado pareados",
+  "dead": 0,
+  "paired": 4,
+  "steps": 321
+ },
+ {
+  "name": "manual ch08#11",
+  "status": "OK",
+  "detail": "9 renglones, marcas=0, 321 pasos, 4 bloques con estado pareados",
+  "dead": 0,
+  "paired": 4,
+  "steps": 321
+ },
+ {
+  "name": "manual ch10#1",
+  "status": "OK",
+  "detail": "9 renglones, marcas=0, 289 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 289
+ },
+ {
+  "name": "manual ch10#2",
+  "status": "OK",
+  "detail": "8 renglones, marcas=0, 321 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 321
+ },
+ {
+  "name": "manual ch10#3",
+  "status": "OK",
+  "detail": "10 renglones, marcas=0, 321 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 321
+ },
+ {
+  "name": "manual ch10#4",
+  "status": "OK",
+  "detail": "12 renglones, marcas=0, 289 pasos, 6 bloques con estado pareados",
+  "dead": 0,
+  "paired": 6,
+  "steps": 289
+ },
+ {
+  "name": "manual ch10#5",
+  "status": "RECHAZADO",
+  "detail": "Node 13 (f_trig): edge detector without input"
+ },
+ {
+  "name": "manual ch10#6",
+  "status": "RECHAZADO",
+  "detail": "Feedback loop detected: Feedback loop (node ids: 5,6,7,8,10,11,12) with 6 memory blocks (ctu+f_trig+tp+ton+rs+ctu): the FBD behaviour depends on the evaluation order, which is tied to the internal node identifiers, so no Ladder can reproduce it in general. Rewrite the feedback with an SR/RS latch (S"
+ },
+ {
+  "name": "manual ch11_5box#1",
+  "status": "OK",
+  "detail": "2 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch11_5box#2",
+  "status": "OK",
+  "detail": "3 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch11_5box#3",
+  "status": "OK",
+  "detail": "2 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch11_5box#4",
+  "status": "OK",
+  "detail": "2 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch11_5box#5",
+  "status": "OK",
+  "detail": "2 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "manual ch11_5box#6",
+  "status": "OK",
+  "detail": "2 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "F01 contactos NA y NC",
+  "status": "OK",
+  "detail": "2 renglones, marcas=0, 289 pasos, 0 bloques con estado pareados",
+  "dead": 0,
+  "paired": 0,
+  "steps": 289
+ },
+ {
+  "name": "F02 AND/OR/NOT/XOR",
+  "status": "OK",
+  "detail": "4 renglones, marcas=0, 289 pasos, 0 bloques con estado pareados",
+  "dead": 0,
+  "paired": 0,
+  "steps": 289
+ },
+ {
+  "name": "F03 TON/TOF/TP con Q directa y negada",
+  "status": "OK",
+  "detail": "7 renglones, marcas=0, 385 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 385
+ },
+ {
+  "name": "F04 CTU con reset, CTD con carga",
+  "status": "OK",
+  "detail": "8 renglones, marcas=1, 289 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 289
+ },
+ {
+  "name": "F05 SR (set domina)",
+  "status": "OK",
+  "detail": "3 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "F06 RS (reset domina)",
+  "status": "OK",
+  "detail": "3 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "F07 SR y RS con Q compartida y negada",
+  "status": "OK",
+  "detail": "7 renglones, marcas=0, 289 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 289
+ },
+ {
+  "name": "F08 flancos positivo y negativo",
+  "status": "OK",
+  "detail": "3 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "F09 flanco compartido por dos consumidores",
+  "status": "OK",
+  "detail": "7 renglones, marcas=1, 289 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 289
+ },
+ {
+  "name": "F10 BLINK",
+  "status": "OK",
+  "detail": "3 renglones, marcas=0, 321 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 321
+ },
+ {
+  "name": "F11 CMP con todos los operadores",
+  "status": "OK",
+  "detail": "4 renglones, marcas=0, 289 pasos, 0 bloques con estado pareados",
+  "dead": 0,
+  "paired": 0,
+  "steps": 289
+ },
+ {
+  "name": "F12 AI1 → SCALE → PWM",
+  "status": "OK",
+  "detail": "4 renglones, marcas=0, 289 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 289
+ },
+ {
+  "name": "F13 SCALE → CMP → salida y PWM a la vez",
+  "status": "OK",
+  "detail": "3 renglones, marcas=0, 289 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 289
+ },
+ {
+  "name": "F14 Q de TON compartida: AND, NOT, OR y a un CTU",
+  "status": "OK",
+  "detail": "7 renglones, marcas=0, 321 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 321
+ },
+ {
+  "name": "F15 combinación: TON → CTU → SR → TOF",
+  "status": "OK",
+  "detail": "9 renglones, marcas=0, 353 pasos, 5 bloques con estado pareados",
+  "dead": 0,
+  "paired": 5,
+  "steps": 353
+ },
+ {
+  "name": "F16 combinación: BLINK → TP → CTD con carga → CMP",
+  "status": "OK",
+  "detail": "6 renglones, marcas=0, 353 pasos, 4 bloques con estado pareados",
+  "dead": 0,
+  "paired": 4,
+  "steps": 353
+ },
+ {
+  "name": "F17 TON, TOF y TP en cascada (límites exactos)",
+  "status": "OK",
+  "detail": "6 renglones, marcas=0, 321 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 321
+ },
+ {
+  "name": "CN1 TON +10 ms",
+  "status": "CONTROL_NEGATIVO_OK",
+  "detail": "param ton(300) 1→undefined ; param tof(400) 1→undefined ; param tp(200) 1→undefined ; param extra ton(310) ; param extra tof(410) ; param extra tp(210) ; ir_check FBD→Ladder→FBD ; original≠convertido (FW) salidas/PWM, paso 34 ; original≠convertido (SIM) salidas/PWM, paso 34 ; original≠FBD→Ladder→FBD (FW), paso 34",
+  "dead": 0,
+  "paired": 0,
+  "steps": 385
+ },
+ {
+  "name": "CN2 CTU preset +1",
+  "status": "CONTROL_NEGATIVO_OK",
+  "detail": "param ctu(4) 1→undefined ; param extra ctu(5) ; ir_check FBD→Ladder→FBD ; original≠convertido (FW) salidas/PWM, paso 56 ; original≠convertido (SIM) salidas/PWM, paso 56 ; original≠FBD→Ladder→FBD (FW), paso 56",
+  "dead": 0,
+  "paired": 2,
+  "steps": 289
+ },
+ {
+  "name": "CN3 SR→prioridad RS",
+  "status": "CONTROL_NEGATIVO_OK",
+  "detail": "instancias sr: 1→0 ; instancias rs: 0→1 (marcas=0) ; ir_check FBD→Ladder→FBD ; original≠convertido (FW) salidas/PWM, paso 2 ; original≠convertido (SIM) salidas/PWM, paso 2 ; original≠FBD→Ladder→FBD (FW), paso 2",
+  "dead": 0,
+  "paired": 0,
+  "steps": 289
+ },
+ {
+  "name": "CN4 CMP operador alterado",
+  "status": "CONTROL_NEGATIVO_OK",
+  "detail": "param cmp(>:1000:)",
+  "dead": 0,
+  "paired": 0,
+  "steps": 289
+ },
+ {
+  "name": "CN5 flanco P→N",
+  "status": "CONTROL_NEGATIVO_OK",
+  "detail": "instancias r_trig: 2→0 ; instancias f_trig: 1→3 ; ir_check FBD→Ladder→FBD ; original≠convertido (FW) salidas/PWM, paso 2 ; original≠convertido (SIM) salidas/PWM, paso 2 ; original≠FBD→Ladder→FBD (FW), paso 2",
+  "dead": 0,
+  "paired": 0,
+  "steps": 289
+ },
+ {
+  "name": "R01 aleatorio acíclico",
+  "status": "OK",
+  "detail": "8 renglones, marcas=0, 239 pasos, 2 bloques con estado pareados",
+  "dead": 1,
+  "paired": 2,
+  "steps": 239
+ },
+ {
+  "name": "R02 aleatorio acíclico",
+  "status": "OK",
+  "detail": "11 renglones, marcas=0, 271 pasos, 3 bloques con estado pareados",
+  "dead": 1,
+  "paired": 3,
+  "steps": 271
+ },
+ {
+  "name": "R03 aleatorio acíclico",
+  "status": "OK",
+  "detail": "10 renglones, marcas=1, 303 pasos, 6 bloques con estado pareados",
+  "dead": 1,
+  "paired": 6,
+  "steps": 303
+ },
+ {
+  "name": "R04 aleatorio acíclico",
+  "status": "OK",
+  "detail": "11 renglones, marcas=0, 335 pasos, 4 bloques con estado pareados",
+  "dead": 0,
+  "paired": 4,
+  "steps": 335
+ },
+ {
+  "name": "R05 aleatorio acíclico",
+  "status": "OK",
+  "detail": "4 renglones, marcas=0, 271 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 271
+ },
+ {
+  "name": "R06 aleatorio acíclico",
+  "status": "OK",
+  "detail": "9 renglones, marcas=1, 239 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 239
+ },
+ {
+  "name": "R07 aleatorio acíclico",
+  "status": "OK",
+  "detail": "13 renglones, marcas=1, 335 pasos, 4 bloques con estado pareados",
+  "dead": 0,
+  "paired": 4,
+  "steps": 335
+ },
+ {
+  "name": "R08 aleatorio acíclico",
+  "status": "OK",
+  "detail": "5 renglones, marcas=0, 271 pasos, 2 bloques con estado pareados",
+  "dead": 2,
+  "paired": 2,
+  "steps": 271
+ },
+ {
+  "name": "R09 aleatorio acíclico",
+  "status": "OK",
+  "detail": "10 renglones, marcas=1, 303 pasos, 4 bloques con estado pareados",
+  "dead": 0,
+  "paired": 4,
+  "steps": 303
+ },
+ {
+  "name": "R10 aleatorio acíclico",
+  "status": "OK",
+  "detail": "11 renglones, marcas=0, 303 pasos, 5 bloques con estado pareados",
+  "dead": 0,
+  "paired": 5,
+  "steps": 303
+ },
+ {
+  "name": "R11 aleatorio acíclico",
+  "status": "OK",
+  "detail": "6 renglones, marcas=0, 271 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 271
+ },
+ {
+  "name": "R12 aleatorio acíclico",
+  "status": "OK",
+  "detail": "9 renglones, marcas=0, 271 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 271
+ },
+ {
+  "name": "R13 aleatorio acíclico",
+  "status": "OK",
+  "detail": "6 renglones, marcas=1, 271 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 271
+ },
+ {
+  "name": "R14 aleatorio acíclico",
+  "status": "OK",
+  "detail": "12 renglones, marcas=0, 303 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 303
+ },
+ {
+  "name": "R15 aleatorio acíclico",
+  "status": "OK",
+  "detail": "9 renglones, marcas=1, 271 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 271
+ },
+ {
+  "name": "R16 aleatorio acíclico",
+  "status": "OK",
+  "detail": "8 renglones, marcas=0, 303 pasos, 4 bloques con estado pareados",
+  "dead": 1,
+  "paired": 4,
+  "steps": 303
+ },
+ {
+  "name": "R17 aleatorio acíclico",
+  "status": "OK",
+  "detail": "11 renglones, marcas=1, 271 pasos, 4 bloques con estado pareados",
+  "dead": 0,
+  "paired": 4,
+  "steps": 271
+ },
+ {
+  "name": "R18 aleatorio acíclico",
+  "status": "OK",
+  "detail": "8 renglones, marcas=0, 271 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 271
+ },
+ {
+  "name": "R19 aleatorio acíclico",
+  "status": "OK",
+  "detail": "7 renglones, marcas=1, 271 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 271
+ },
+ {
+  "name": "R20 aleatorio acíclico",
+  "status": "OK",
+  "detail": "8 renglones, marcas=1, 303 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 303
+ },
+ {
+  "name": "R21 aleatorio acíclico",
+  "status": "OK",
+  "detail": "7 renglones, marcas=0, 271 pasos, 1 bloques con estado pareados",
+  "dead": 1,
+  "paired": 1,
+  "steps": 271
+ },
+ {
+  "name": "R22 aleatorio acíclico",
+  "status": "OK",
+  "detail": "8 renglones, marcas=0, 271 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 271
+ },
+ {
+  "name": "R23 aleatorio acíclico",
+  "status": "OK",
+  "detail": "9 renglones, marcas=0, 271 pasos, 1 bloques con estado pareados",
+  "dead": 0,
+  "paired": 1,
+  "steps": 271
+ },
+ {
+  "name": "R24 aleatorio acíclico",
+  "status": "OK",
+  "detail": "6 renglones, marcas=0, 271 pasos, 2 bloques con estado pareados",
+  "dead": 1,
+  "paired": 2,
+  "steps": 271
+ },
+ {
+  "name": "R25 aleatorio acíclico",
+  "status": "OK",
+  "detail": "12 renglones, marcas=1, 335 pasos, 4 bloques con estado pareados",
+  "dead": 0,
+  "paired": 4,
+  "steps": 335
+ },
+ {
+  "name": "R26 aleatorio acíclico",
+  "status": "OK",
+  "detail": "14 renglones, marcas=0, 271 pasos, 5 bloques con estado pareados",
+  "dead": 1,
+  "paired": 5,
+  "steps": 271
+ },
+ {
+  "name": "R27 aleatorio acíclico",
+  "status": "OK",
+  "detail": "9 renglones, marcas=0, 335 pasos, 4 bloques con estado pareados",
+  "dead": 0,
+  "paired": 4,
+  "steps": 335
+ },
+ {
+  "name": "R28 aleatorio acíclico",
+  "status": "OK",
+  "detail": "8 renglones, marcas=1, 271 pasos, 4 bloques con estado pareados",
+  "dead": 0,
+  "paired": 4,
+  "steps": 271
+ },
+ {
+  "name": "R29 aleatorio acíclico",
+  "status": "OK",
+  "detail": "14 renglones, marcas=0, 303 pasos, 4 bloques con estado pareados",
+  "dead": 0,
+  "paired": 4,
+  "steps": 303
+ },
+ {
+  "name": "R30 aleatorio acíclico",
+  "status": "OK",
+  "detail": "10 renglones, marcas=0, 303 pasos, 5 bloques con estado pareados",
+  "dead": 0,
+  "paired": 5,
+  "steps": 303
+ },
+ {
+  "name": "R31 aleatorio acíclico",
+  "status": "OK",
+  "detail": "9 renglones, marcas=0, 271 pasos, 4 bloques con estado pareados",
+  "dead": 1,
+  "paired": 4,
+  "steps": 271
+ },
+ {
+  "name": "R32 aleatorio acíclico",
+  "status": "OK",
+  "detail": "4 renglones, marcas=0, 271 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 271
+ },
+ {
+  "name": "R33 aleatorio acíclico",
+  "status": "OK",
+  "detail": "3 renglones, marcas=0, 303 pasos, 2 bloques con estado pareados",
+  "dead": 1,
+  "paired": 2,
+  "steps": 303
+ },
+ {
+  "name": "R34 aleatorio acíclico",
+  "status": "OK",
+  "detail": "7 renglones, marcas=0, 239 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 239
+ },
+ {
+  "name": "R35 aleatorio acíclico",
+  "status": "OK",
+  "detail": "6 renglones, marcas=0, 303 pasos, 3 bloques con estado pareados",
+  "dead": 1,
+  "paired": 3,
+  "steps": 303
+ },
+ {
+  "name": "R36 aleatorio acíclico",
+  "status": "OK",
+  "detail": "7 renglones, marcas=0, 239 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 239
+ },
+ {
+  "name": "R37 aleatorio acíclico",
+  "status": "OK",
+  "detail": "4 renglones, marcas=0, 271 pasos, 2 bloques con estado pareados",
+  "dead": 1,
+  "paired": 2,
+  "steps": 271
+ },
+ {
+  "name": "R38 aleatorio acíclico",
+  "status": "OK",
+  "detail": "17 renglones, marcas=0, 303 pasos, 5 bloques con estado pareados",
+  "dead": 0,
+  "paired": 5,
+  "steps": 303
+ },
+ {
+  "name": "R39 aleatorio acíclico",
+  "status": "OK",
+  "detail": "13 renglones, marcas=1, 271 pasos, 4 bloques con estado pareados",
+  "dead": 0,
+  "paired": 4,
+  "steps": 271
+ },
+ {
+  "name": "R40 aleatorio acíclico",
+  "status": "OK",
+  "detail": "4 renglones, marcas=0, 271 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 271
+ },
+ {
+  "name": "R41 aleatorio acíclico",
+  "status": "OK",
+  "detail": "16 renglones, marcas=1, 335 pasos, 9 bloques con estado pareados",
+  "dead": 0,
+  "paired": 9,
+  "steps": 335
+ },
+ {
+  "name": "R42 aleatorio acíclico",
+  "status": "OK",
+  "detail": "11 renglones, marcas=0, 303 pasos, 4 bloques con estado pareados",
+  "dead": 1,
+  "paired": 4,
+  "steps": 303
+ },
+ {
+  "name": "R43 aleatorio acíclico",
+  "status": "OK",
+  "detail": "7 renglones, marcas=1, 271 pasos, 4 bloques con estado pareados",
+  "dead": 1,
+  "paired": 4,
+  "steps": 271
+ },
+ {
+  "name": "R44 aleatorio acíclico",
+  "status": "OK",
+  "detail": "9 renglones, marcas=0, 303 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 303
+ },
+ {
+  "name": "R45 aleatorio acíclico",
+  "status": "OK",
+  "detail": "6 renglones, marcas=1, 271 pasos, 3 bloques con estado pareados",
+  "dead": 1,
+  "paired": 3,
+  "steps": 271
+ },
+ {
+  "name": "R46 aleatorio acíclico",
+  "status": "OK",
+  "detail": "10 renglones, marcas=0, 303 pasos, 5 bloques con estado pareados",
+  "dead": 0,
+  "paired": 5,
+  "steps": 303
+ },
+ {
+  "name": "R47 aleatorio acíclico",
+  "status": "OK",
+  "detail": "9 renglones, marcas=0, 303 pasos, 4 bloques con estado pareados",
+  "dead": 1,
+  "paired": 4,
+  "steps": 303
+ },
+ {
+  "name": "R48 aleatorio acíclico",
+  "status": "OK",
+  "detail": "9 renglones, marcas=1, 271 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 271
+ },
+ {
+  "name": "R49 aleatorio acíclico",
+  "status": "OK",
+  "detail": "6 renglones, marcas=0, 239 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 239
+ },
+ {
+  "name": "R50 aleatorio acíclico",
+  "status": "OK",
+  "detail": "6 renglones, marcas=0, 335 pasos, 4 bloques con estado pareados",
+  "dead": 0,
+  "paired": 4,
+  "steps": 335
+ },
+ {
+  "name": "R51 aleatorio acíclico",
+  "status": "OK",
+  "detail": "14 renglones, marcas=0, 303 pasos, 5 bloques con estado pareados",
+  "dead": 2,
+  "paired": 5,
+  "steps": 303
+ },
+ {
+  "name": "R52 aleatorio acíclico",
+  "status": "OK",
+  "detail": "9 renglones, marcas=0, 335 pasos, 5 bloques con estado pareados",
+  "dead": 2,
+  "paired": 5,
+  "steps": 335
+ },
+ {
+  "name": "R53 aleatorio acíclico",
+  "status": "OK",
+  "detail": "8 renglones, marcas=0, 271 pasos, 3 bloques con estado pareados",
+  "dead": 1,
+  "paired": 3,
+  "steps": 271
+ },
+ {
+  "name": "R54 aleatorio acíclico",
+  "status": "OK",
+  "detail": "6 renglones, marcas=0, 303 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 303
+ },
+ {
+  "name": "R55 aleatorio acíclico",
+  "status": "OK",
+  "detail": "10 renglones, marcas=1, 271 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 271
+ },
+ {
+  "name": "R56 aleatorio acíclico",
+  "status": "OK",
+  "detail": "13 renglones, marcas=2, 303 pasos, 7 bloques con estado pareados",
+  "dead": 1,
+  "paired": 7,
+  "steps": 303
+ },
+ {
+  "name": "R57 aleatorio acíclico",
+  "status": "OK",
+  "detail": "5 renglones, marcas=0, 271 pasos, 2 bloques con estado pareados",
+  "dead": 0,
+  "paired": 2,
+  "steps": 271
+ },
+ {
+  "name": "R58 aleatorio acíclico",
+  "status": "OK",
+  "detail": "14 renglones, marcas=0, 271 pasos, 6 bloques con estado pareados",
+  "dead": 1,
+  "paired": 6,
+  "steps": 271
+ },
+ {
+  "name": "R59 aleatorio acíclico",
+  "status": "OK",
+  "detail": "9 renglones, marcas=0, 239 pasos, 3 bloques con estado pareados",
+  "dead": 0,
+  "paired": 3,
+  "steps": 239
+ },
+ {
+  "name": "R60 aleatorio acíclico",
+  "status": "OK",
+  "detail": "8 renglones, marcas=1, 271 pasos, 3 bloques con estado pareados",
+  "dead": 3,
+  "paired": 3,
+  "steps": 271
+ }
+]

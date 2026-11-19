@@ -38,8 +38,10 @@ void plcReload()
     // 3. Reset PWM: detach canales LEDC, restaurar pines como GPIO
     plcResetAllPWM();
 
-    // 4. Limpiar tabla de nodos
-    runtimeClear();
+    // 4. NO se limpia la tabla de nodos aquí: parseProgram() es transaccional y
+    //    solo reemplaza el programa cuando el JSON nuevo se leyó completo. Si el
+    //    JSON es inválido o no entra en memoria, el programa anterior sigue
+    //    cargado (y parseProgram vuelve a registrar sus canales PWM).
 
     // 5. Reparse (incluye pasada de registro PWM con LEDC fresco)
     String json = loadProgram();

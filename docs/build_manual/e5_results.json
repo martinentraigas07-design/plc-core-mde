@@ -1,0 +1,1252 @@
+{
+ "2.1": {
+  "title": "Arranque/paro con paro NC",
+  "rows": [
+   {
+    "l": "Reposo (IN2 NC cerrado)",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Pulsar ARRANQUE",
+    "in": {
+     "0": 1,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Soltar ARRANQUE",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Pulsar PARO (NC abre)",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Soltar PARO",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "ARRANQUE de nuevo",
+    "in": {
+     "0": 1,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Soltar ARRANQUE",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Cable de PARO cortado",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "ARRANQUE con el cable de PARO cortado",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   }
+  ],
+  "ladder": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  }
+ },
+ "2.3": {
+  "title": "Cadena de seguridad NC + inicio",
+  "rows": [
+   {
+    "l": "Cadena OK, sin pulsar INICIO",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Pulsar INICIO",
+    "in": {
+     "0": 1,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Soltar INICIO (sigue en marcha)",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "EMERGENCIA presionada (cadena abre)",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Cadena cierra de nuevo, sin INICIO (no rearma solo)",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Pulsar INICIO con la cadena OK (rearme)",
+    "in": {
+     "0": 1,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Soltar INICIO",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "INICIO pulsado mientras la emergencia sigue activa",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Cable de la cadena cortado",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   }
+  ],
+  "ladder": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  }
+ },
+ "3.1": {
+  "title": "SR con lámparas opuestas",
+  "rows": [
+   {
+    "l": "Reposo",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0100"
+   },
+   {
+    "l": "Pulsar IN1 (arranque)",
+    "in": {
+     "0": 1,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Soltar IN1",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Pulsar PARO (IN2 NC abre)",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0100"
+   },
+   {
+    "l": "Conflicto: IN1 y PARO a la vez (SET gana)",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "1000"
+   }
+  ],
+  "ladder": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  }
+ },
+ "3.2": {
+  "title": "RS prioridad de reset",
+  "rows": [
+   {
+    "l": "Reposo",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Arranque normal",
+    "in": {
+     "0": 1,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Soltar",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Conflicto: IN1 y PARO a la vez (RESET gana)",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "PARO solo",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   }
+  ],
+  "ladder": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  }
+ },
+ "4.6": {
+  "title": "Alarma por tiempo (timeout) con RS",
+  "rows": [
+   {
+    "l": "Nivel normal",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Nivel bajo: arranca la bomba",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Nivel empieza a subir (bomba sigue)",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Pasan 2 min",
+    "in": {},
+    "adv": 120000,
+    "out": "1000"
+   },
+   {
+    "l": "Llega a nivel alto (IN2): llenado exitoso",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Nivel vuelve a bajar",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Pasan 4 min",
+    "in": {},
+    "adv": 240000,
+    "out": "1000"
+   },
+   {
+    "l": "Pasan 1 min más (5 min)",
+    "in": {},
+    "adv": 61000,
+    "out": "1100"
+   },
+   {
+    "l": "Sensor de nivel alto: la bomba se detiene",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0000"
+   }
+  ],
+  "ladder": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  }
+ },
+ "7.1": {
+  "title": "Motor con contactor y retardo de arranque",
+  "rows": [
+   {
+    "l": "Reposo",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0010"
+   },
+   {
+    "l": "Pulsar ARRANQUE",
+    "in": {
+     "0": 1,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0010"
+   },
+   {
+    "l": "Soltar ARRANQUE (cuenta el retardo)",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0010"
+   },
+   {
+    "l": "A los 3 s",
+    "in": {},
+    "adv": 3100,
+    "out": "1100"
+   },
+   {
+    "l": "Pulsar PARO",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0010"
+   },
+   {
+    "l": "Soltar PARO",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0010"
+   },
+   {
+    "l": "ARRANQUE y PARO antes de 3 s",
+    "in": {
+     "0": 1,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0010"
+   },
+   {
+    "l": "PARO",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0010"
+   },
+   {
+    "l": "Cable de PARO cortado",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0010"
+   }
+  ],
+  "ladder": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  }
+ },
+ "7.2": {
+  "title": "Estrella-triángulo con tiempo muerto",
+  "rows": [
+   {
+    "l": "Parado",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "ARRANQUE: K1 y K2 (estrella)",
+    "in": {
+     "0": 1,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "1100"
+   },
+   {
+    "l": "Soltar ARRANQUE (7,9 s, estrella)",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 7900,
+    "out": "1100"
+   },
+   {
+    "l": "A los 8,05 s: K2 abre y K3 aún no cierra",
+    "in": {},
+    "adv": 150,
+    "out": "1000"
+   },
+   {
+    "l": "A los 8,2 s: K3 cierra (triángulo)",
+    "in": {},
+    "adv": 150,
+    "out": "1010"
+   },
+   {
+    "l": "PARO",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Soltar PARO",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0000"
+   }
+  ],
+  "ladder": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  }
+ },
+ "7.3": {
+  "title": "Semáforo peatonal",
+  "rows": [
+   {
+    "l": "Estado normal (verde vehicular)",
+    "in": {
+     "0": 0
+    },
+    "adv": 0,
+    "out": "0100"
+   },
+   {
+    "l": "Pulsar y soltar el botón (pulso breve)",
+    "in": {
+     "0": 1
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Botón suelto (rojo vehicular en curso)",
+    "in": {
+     "0": 0
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "A los 3,1 s",
+    "in": {},
+    "adv": 3100,
+    "out": "1011"
+   },
+   {
+    "l": "A los 15 s (nuevo pulso ignorado)",
+    "in": {
+     "0": 1
+    },
+    "adv": 12000,
+    "out": "1011"
+   },
+   {
+    "l": "A los 19,8 s (aún dentro de los 20 s)",
+    "in": {
+     "0": 0
+    },
+    "adv": 4700,
+    "out": "1011"
+   },
+   {
+    "l": "A los 20,3 s",
+    "in": {},
+    "adv": 500,
+    "out": "0100"
+   }
+  ],
+  "ladder": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  }
+ },
+ "7.4": {
+  "title": "Alarma de lazo de zonas (2 entradas)",
+  "rows": [
+   {
+    "l": "Lazo normal",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Se abre una zona (sensor o cable)",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0100"
+   },
+   {
+    "l": "Pasan 600 ms (BLINK en ON)",
+    "in": {},
+    "adv": 600,
+    "out": "1100"
+   },
+   {
+    "l": "La zona vuelve a cerrar",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "1100"
+   },
+   {
+    "l": "Alarma sigue memorizada",
+    "in": {},
+    "adv": 600,
+    "out": "0100"
+   },
+   {
+    "l": "Operador reconoce (IN2) con el lazo cerrado",
+    "in": {
+     "0": 1,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Suelta IN2",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   }
+  ],
+  "ladder": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  }
+ },
+ "8.2": {
+  "title": "Cintas enclavadas (C2 sigue a C1)",
+  "rows": [
+   {
+    "l": "Reposo",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "ARRANQUE: C1 y C2 arrancan",
+    "in": {
+     "0": 1,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "1100"
+   },
+   {
+    "l": "Soltar",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "1100"
+   },
+   {
+    "l": "PARO (C1 se detiene)",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0100"
+   },
+   {
+    "l": "1 s después",
+    "in": {},
+    "adv": 1000,
+    "out": "0100"
+   },
+   {
+    "l": "3,1 s después del paro",
+    "in": {},
+    "adv": 2200,
+    "out": "0000"
+   }
+  ],
+  "ladder": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  }
+ },
+ "8.3": {
+  "title": "Timeout de seguridad con alarma enclavada",
+  "rows": [
+   {
+    "l": "Reposo",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Pulsar INICIO: abre la válvula",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Soltar INICIO",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Pasan 100 s",
+    "in": {},
+    "adv": 100000,
+    "out": "1000"
+   },
+   {
+    "l": "Nivel alto antes de 3 min: cierra",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Nuevo INICIO (nivel alto liberado)",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Soltar INICIO",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Pasan 3 min sin nivel alto (falla)",
+    "in": {},
+    "adv": 181000,
+    "out": "0100"
+   },
+   {
+    "l": "La válvula ya está cerrada; la alarma sigue",
+    "in": {},
+    "adv": 5000,
+    "out": "0100"
+   },
+   {
+    "l": "Nuevo INICIO: rearma y borra la alarma",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "1000"
+   }
+  ],
+  "ladder": {
+   "ok": false,
+   "why": "Feedback loop detected: Feedback loop (node ids: 3,4,5) with 2 memory blocks (ton+rs): the FBD behaviour depends on the evaluation order, which is tied to the internal node identifiers, so no Ladder c"
+  },
+  "idPermutations": {
+   "tested": 40,
+   "changed": 0
+  }
+ },
+ "10.4_nota": {
+  "nota": "ejemplo reducido para verificar la corrección del umbral CMP<5 con SCALE 0–100"
+ },
+ "10.4": {
+  "title": "Protección por presión baja (SCALE 0–100 = décimas de bar)",
+  "rows": [
+   {
+    "l": "Presión normal (5,0 bar), INICIO",
+    "in": {
+     "0": 1
+    },
+    "adv": 0,
+    "ai": 2048,
+    "out": "1000"
+   },
+   {
+    "l": "Soltar INICIO",
+    "in": {
+     "0": 0
+    },
+    "adv": 0,
+    "ai": 2048,
+    "out": "1000"
+   },
+   {
+    "l": "Presión 0,6 bar",
+    "in": {},
+    "adv": 0,
+    "ai": 246,
+    "out": "1000"
+   },
+   {
+    "l": "Presión 0,4 bar (< 0,5)",
+    "in": {},
+    "adv": 0,
+    "ai": 164,
+    "out": "0100"
+   },
+   {
+    "l": "Presión vuelve a 5 bar, sin INICIO",
+    "in": {},
+    "adv": 0,
+    "ai": 2048,
+    "out": "0000"
+   }
+  ],
+  "ladder": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  }
+ },
+ "8.4": {
+  "title": "Alarma con reset por pulsación sostenida de 2 s",
+  "rows": [
+   {
+    "l": "Lazo normal",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "El sensor abre el lazo: alarma ON",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Se pulsa reset un instante (0,5 s)",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 500,
+    "out": "1000"
+   },
+   {
+    "l": "Se suelta el reset",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Reset sostenido 2,2 s con el sensor aún abierto (set domina)",
+    "in": {
+     "0": 0,
+     "1": 1
+    },
+    "adv": 2200,
+    "out": "1000"
+   },
+   {
+    "l": "El lazo vuelve a normal",
+    "in": {
+     "0": 1,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Reset sostenido 2,2 s con el lazo normal",
+    "in": {},
+    "adv": 2200,
+    "out": "0000"
+   },
+   {
+    "l": "Soltar reset",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   }
+  ],
+  "ladder": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  }
+ },
+ "8.5": {
+  "title": "Prensa didáctica: cadena NC, rearme, retardo y contador de ciclos",
+  "rows": [
+   {
+    "l": "Cadena OK, parada",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "INICIO: espera de 3 s (amarilla)",
+    "in": {
+     "0": 1,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0100"
+   },
+   {
+    "l": "Soltar INICIO",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0100"
+   },
+   {
+    "l": "A los 3,1 s: contactor y verde",
+    "in": {},
+    "adv": 3100,
+    "out": "1010"
+   },
+   {
+    "l": "EMERGENCIA",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Cadena cierra: no rearma sola",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "INICIO (2.º ciclo)",
+    "in": {
+     "0": 1,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0100"
+   },
+   {
+    "l": "Soltar y esperar 3,1 s",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 3100,
+    "out": "1010"
+   },
+   {
+    "l": "EMERGENCIA",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Cadena OK",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "INICIO (3.er ciclo): el contador llega a 3",
+    "in": {
+     "0": 1,
+     "1": 1
+    },
+    "adv": 0,
+    "out": "0101"
+   },
+   {
+    "l": "Soltar y esperar 3,1 s",
+    "in": {
+     "0": 1,
+     "1": 0
+    },
+    "adv": 3100,
+    "out": "1011"
+   }
+  ],
+  "ladder": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  }
+ },
+ "10.5": {
+  "title": "Mezcla automatizada (versión corregida)",
+  "rows": [
+   {
+    "l": "Inicio: cintas A y B en marcha",
+    "in": {
+     "0": 0,
+     "1": 0
+    },
+    "adv": 0,
+    "out": "1100"
+   },
+   {
+    "l": "10 unidades de A (IN1)",
+    "in": {},
+    "adv": 0,
+    "out": "1100"
+   },
+   {
+    "l": "5 unidades de B (IN2): receta completa",
+    "in": {},
+    "adv": 0,
+    "out": "0010"
+   },
+   {
+    "l": "A los 29 s: mezclando",
+    "in": {},
+    "adv": 29000,
+    "out": "0010"
+   },
+   {
+    "l": "A los 31 s: termina la mezcla, abre la descarga",
+    "in": {},
+    "adv": 2000,
+    "out": "0001"
+   },
+   {
+    "l": "A los 35,5 s: descargando",
+    "in": {},
+    "adv": 4500,
+    "out": "0001"
+   },
+   {
+    "l": "A los 36,5 s: fin de descarga, reinicio automático",
+    "in": {},
+    "adv": 1000,
+    "out": "1100"
+   }
+  ],
+  "ladder": {
+   "ok": false,
+   "why": "Feedback loop detected: Feedback loop (node ids: 5,6,7,8,10,11,12) with 6 memory blocks (ctu+f_trig+tp+ton+rs+ctu): the FBD behaviour depends on the evaluation order, which is tied to the internal nod"
+  },
+  "idPermutations": {
+   "tested": 40,
+   "changed": 0
+  }
+ },
+ "5.regla": {
+  "title": "CTU sin R_TRIG: cuenta un pulso por flanco",
+  "rows": [
+   {
+    "l": "Pulso 1: IN1=1 durante 3 scans",
+    "in": {
+     "0": 1
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Soltar IN1",
+    "in": {
+     "0": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Pulso 2: IN1=1 durante 3 scans",
+    "in": {
+     "0": 1
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Soltar IN1",
+    "in": {
+     "0": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Pulso 3: IN1=1 durante 3 scans",
+    "in": {
+     "0": 1
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Soltar IN1",
+    "in": {
+     "0": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Pulso 4: IN1=1 durante 3 scans",
+    "in": {
+     "0": 1
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Soltar IN1",
+    "in": {
+     "0": 0
+    },
+    "adv": 0,
+    "out": "0000"
+   },
+   {
+    "l": "Pulso 5: IN1=1 durante 3 scans",
+    "in": {
+     "0": 1
+    },
+    "adv": 0,
+    "out": "1000"
+   },
+   {
+    "l": "Soltar IN1",
+    "in": {
+     "0": 0
+    },
+    "adv": 0,
+    "out": "1000"
+   }
+  ],
+  "ladder": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  }
+ },
+ "6.1": {
+  "title": "AI1→SCALE→PWM",
+  "ladder": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  }
+ },
+ "feedback": {
+  "ch01_03#7": {
+   "ok": true,
+   "verified": true,
+   "marks": 1
+  },
+  "ch01_03#17": {
+   "ok": true,
+   "verified": true,
+   "marks": 1
+  },
+  "ch11_5box#2": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  },
+  "ch05#6": {
+   "ok": true,
+   "verified": true,
+   "marks": 0
+  },
+  "ch01_03#10": {
+   "ok": false,
+   "why": "Feedback loop detected: Feedback loop (node ids: 4,5,6,7,8,9,10,11) with 2 memory blocks (rs+sr): the FBD behaviour depends on the evaluation order, which is tied to the internal node identifiers, so "
+  },
+  "ch08#6": {
+   "ok": false,
+   "why": "Feedback loop detected: Feedback loop (node ids: 3,4,5) with 2 memory blocks (ton+rs): the FBD behaviour depends on the evaluation order, which is tied to the internal node identifiers, so no Ladder c"
+  },
+  "ch08#7": {
+   "ok": false,
+   "why": "Feedback loop detected: Feedback loop (node ids: 3,4,5) with 2 memory blocks (ton+rs): the FBD behaviour depends on the evaluation order, which is tied to the internal node identifiers, so no Ladder c"
+  },
+  "ch10#6": {
+   "ok": false,
+   "why": "Feedback loop detected: Feedback loop (node ids: 5,6,7,8,10,11,12) with 6 memory blocks (ctu+f_trig+tp+ton+rs+ctu): the FBD behaviour depends on the evaluation order, which is tied to the internal nod"
+  }
+ }
+}

@@ -19,6 +19,8 @@
 <script src="js/compiler/ladder_ast.js"></script>
 <script src="js/compiler/ladder_program.js"></script>
 <script src="js/compiler/ladder_decompiler.js"></script>
+<script src="js/compiler/ir_check.js"></script>
+<script src="js/project/plc_project.js"></script>
 <script src="js/ui/memory_panel.js"></script>
 <style>
 body { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
@@ -403,6 +405,35 @@ body { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
 .blk-modal-col {
   display:flex; flex-direction:column; flex:1;
 }
+.cell.edge { border:1px solid rgba(255,214,0,0.55); background:var(--panel2); }
+.cell.edge:hover { border-color:var(--yellow); }
+.cell.edge .c-sym { color:var(--yellow); }
+.cell.cmp { border:1px solid rgba(180,120,255,0.6); background:var(--panel2); min-width:74px; }
+.cell.cmp:hover { border-color:#b478ff; }
+.cell.cmp .c-sym { color:#b478ff; font-size:11px; letter-spacing:0; }
+.cell.fn { border:1px solid rgba(58,180,242,0.55); background:var(--panel2); min-width:92px; padding:3px 6px; cursor:pointer; position:relative; }
+.cell.fn:hover { border-color:var(--accent2); }
+.cell.fn:hover .c-del { display:flex; }
+.fn-title { font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:2px; color:var(--accent2); border-bottom:1px solid var(--border); margin-bottom:2px; }
+.fn-line { font-family:var(--font-mono); font-size:8px; color:var(--text); white-space:pre; }
+.fn-arrow { font-family:var(--font-mono); color:var(--accent2); align-self:center; padding:0 2px; }
+.num-row .cell-zone { align-items:center; }
+.coil-cell.pwm-c { border-color:rgba(180,120,255,0.6); }
+.coil-cell.pwm-c .co-sym { color:#b478ff; font-size:11px; }
+.coil-cell.ld-c { border-color:rgba(58,180,242,0.6); }
+.coil-cell.ld-c .co-sym { color:var(--accent2); }
+.warn-line { font-family:var(--font-mono); font-size:8px; color:var(--yellow); padding:1px 8px; }
+.proj-name { background:var(--panel2); color:var(--text); border:1px solid var(--border2); border-radius:2px; padding:4px 7px; font-family:var(--font-mono); font-size:11px; width:150px; }
+.proj-msg { font-family:var(--font-mono); font-size:11px; padding:6px 14px; border-bottom:1px solid var(--border2); white-space:pre-wrap; }
+.proj-msg.ok { color:var(--green); } .proj-msg.warn { color:var(--yellow); } .proj-msg.err { color:var(--red); }
+#conv-banner { display:none; margin:0; padding:8px 14px; font-family:var(--font-mono); font-size:10px; border-bottom:2px solid var(--yellow); background:rgba(255,214,0,0.08); color:var(--text); max-height:34vh; overflow:auto; }
+#conv-banner.ok { border-bottom-color:var(--green); background:rgba(0,230,118,0.07); }
+#conv-banner .cb-ttl { font-weight:700; color:var(--yellow); letter-spacing:1px; margin-bottom:4px; }
+#conv-banner.ok .cb-ttl { color:var(--green); }
+#conv-banner li { margin:2px 0 2px 16px; }
+#conv-banner .cb-raw { color:var(--text-dim); font-size:8px; }
+#conv-banner button { margin:6px 6px 0 0; padding:3px 10px; border:1px solid var(--border2); background:var(--panel2); color:var(--text); cursor:pointer; font-family:var(--font-mono); font-size:9px; }
+.mode-row.four .mode-opt { min-width:0; }
 .blk-modal-col .modal-inp { margin-bottom:0; }
 
 /* ── Energización de líneas + flujo animado ─────────────────── */
@@ -535,17 +566,26 @@ body { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
   <button class="ctrl-btn run"  onclick="plcRun()">&#x25BA; RUN</button>
   <button class="ctrl-btn stop" onclick="plcStop()">&#x25A0; STOP</button>
   <div class="topbar-sep"></div>
-  <button class="ctrl-btn save" onclick="compileAndSend()">&#x2B06; COMPILE</button>
+  <button class="ctrl-btn save" id="btn-save-plc" onclick="compileAndSend()" title="Compilar, validar y enviar el programa al PLC">&#x2B06; Guardar en PLC</button>
   <button class="ctrl-btn"      onclick="validateAll()">&#x2713; VALIDATE</button>
   <button class="ctrl-btn"      onclick="saveDraft()">&#x1F4BE; DRAFT</button>
   <button class="ctrl-btn"      onclick="clearAll()">&#x2715; NEW</button>
   <div class="topbar-sep"></div>
-  <button class="ctrl-btn"      onclick="exportJSON()">&#x2913; JSON</button>
+  <button class="ctrl-btn"      onclick="exportJSON()" title="Exportar solo los renglones Ladder como JSON (formato anterior)">&#x2913; JSON</button>
   <input type="file" id="imp-file" accept=".json" style="display:none" onchange="importJSON(this)">
-  <button class="ctrl-btn"      onclick="document.getElementById('imp-file').click()">&#x2912; IMPORT</button>
+  <button class="ctrl-btn"      onclick="document.getElementById('imp-file').click()" title="Importar un JSON Ladder (formato anterior)">&#x2912; IMPORT JSON</button>
+  <div class="topbar-sep"></div>
+  <input id="proj-name" class="proj-name" type="text" maxlength="48" value="Proyecto Ladder" title="Nombre del proyecto (se usa en el archivo .plc)" aria-label="Nombre del proyecto">
+  <button class="ctrl-btn" id="btn-export" onclick="exportProject()" title="Descargar el proyecto completo como archivo .plc (no toca el PLC)">&#x2B07; Exportar proyecto</button>
+  <input type="file" id="proj-file" accept=".plc,.json,application/json" style="display:none" onchange="importProject(this)">
+  <button class="ctrl-btn" id="btn-import" onclick="document.getElementById('proj-file').click()" title="Abrir un archivo .plc en este editor (no guarda nada en el PLC)">&#x2B06; Importar proyecto</button>
+  <button class="ctrl-btn"      id="btn-from-fbd" onclick="convertFromSaved()" title="Convert the FBD program saved on the device to Ladder (verified)">&#x21BB; FROM FBD</button>
   <div class="topbar-sep"></div>
   <a href="index.html"><button class="ctrl-btn">&#x2302; HOME</button></a>
 </div>
+
+<div id="proj-msg" class="proj-msg" role="status" aria-live="polite" style="display:none"></div>
+<div id="conv-banner"></div>
 
 <!-- LAYOUT -->
 <div class="ld-layout">
@@ -563,6 +603,16 @@ body { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
         <span class="pal-sym">&#x2524;/&#x251C;</span>
         <div><div class="pal-lbl">Normally Closed</div><div class="pal-sub">NC / N.C.</div></div>
         <span class="pal-kbd">2</span>
+      </div>
+      <div class="pal-item" id="pal-P" onclick="selectTool('P',this)" draggable="true" ondragstart="palDrag(event,'P')">
+        <span class="pal-sym">&#x2524;P&#x251C;</span>
+        <div><div class="pal-lbl">Rising Edge</div><div class="pal-sub">[P] 1 scan</div></div>
+        <span class="pal-kbd">P</span>
+      </div>
+      <div class="pal-item" id="pal-N" onclick="selectTool('N',this)" draggable="true" ondragstart="palDrag(event,'N')">
+        <span class="pal-sym">&#x2524;N&#x251C;</span>
+        <div><div class="pal-lbl">Falling Edge</div><div class="pal-sub">[N] 1 scan</div></div>
+        <span class="pal-kbd">N</span>
       </div>
     </div>
     <div class="pal-section">
@@ -582,6 +632,18 @@ body { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
         <div><div class="pal-lbl">Reset Coil</div><div class="pal-sub">Latch OFF</div></div>
         <span class="pal-kbd">5</span>
       </div>
+      <div class="pal-item" id="pal-CRST" onclick="selectTool('CRST',this)" draggable="true" ondragstart="palDrag(event,'CRST')">
+        <span class="pal-sym" style="font-size:10px">(R)C</span>
+        <div><div class="pal-lbl">Counter Reset</div><div class="pal-sub">CTU R input</div></div>
+      </div>
+      <div class="pal-item" id="pal-CLD" onclick="selectTool('CLD',this)" draggable="true" ondragstart="palDrag(event,'CLD')">
+        <span class="pal-sym" style="font-size:10px">(LD)</span>
+        <div><div class="pal-lbl">Counter Load</div><div class="pal-sub">CTD LD input</div></div>
+      </div>
+      <div class="pal-item" id="pal-PWMC" onclick="selectTool('PWMC',this)" draggable="true" ondragstart="palDrag(event,'PWMC')">
+        <span class="pal-sym" style="font-size:10px">(PWM)</span>
+        <div><div class="pal-lbl">PWM on/off</div><div class="pal-sub">cond. &rarr; 0 / 4095</div></div>
+      </div>
     </div>
     <div class="pal-section">
       <div class="pal-stitle">Timers</div>
@@ -594,6 +656,14 @@ body { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
         <span class="pal-sym" style="font-size:10px">TOF</span>
         <div><div class="pal-lbl">Timer OFF</div><div class="pal-blk">Delay OFF</div></div>
         <span class="pal-kbd">7</span>
+      </div>
+      <div class="pal-item" id="pal-TP" onclick="selectTool('TP',this)" draggable="true" ondragstart="palDrag(event,'TP')">
+        <span class="pal-sym" style="font-size:10px">TP</span>
+        <div><div class="pal-lbl">Pulse</div><div class="pal-blk">One-shot</div></div>
+      </div>
+      <div class="pal-item" id="pal-BLINK" onclick="selectTool('BLINK',this)" draggable="true" ondragstart="palDrag(event,'BLINK')">
+        <span class="pal-sym" style="font-size:9px">BLINK</span>
+        <div><div class="pal-lbl">Blink</div><div class="pal-blk">Oscillator</div></div>
       </div>
     </div>
     <div class="pal-section">
@@ -610,13 +680,28 @@ body { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
       </div>
     </div>
     <div class="pal-section">
+      <div class="pal-stitle">Compare</div>
+      <div class="pal-item" id="pal-CMP" onclick="selectTool('CMP',this)" draggable="true" ondragstart="palDrag(event,'CMP')">
+        <span class="pal-sym" style="font-size:10px">CMP</span>
+        <div><div class="pal-lbl">Comparator</div><div class="pal-sub">AI1 / Sn vs value</div></div>
+      </div>
+    </div>
+    <div class="pal-section">
+      <div class="pal-stitle">Analog</div>
+      <div class="pal-item" style="cursor:pointer" onclick="addNumRung()">
+        <span class="pal-sym" style="font-size:10px">AI1</span>
+        <div><div class="pal-lbl">+ Analog Rung</div><div class="pal-sub">AI1 &rarr; SCALE &rarr; PWM</div></div>
+      </div>
+    </div>
+    <div class="pal-section">
       <div class="pal-stitle">Addresses</div>
       <div class="pal-addrs">
         <span style="color:var(--accent2)">X</span>0-X7 Inputs<br>
         <span style="color:var(--accent)">Y</span>0-Y7 Outputs<br>
         <span style="color:#3ab4f2">M</span>0-M15 Markers<br>
         <span style="color:var(--yellow)">T</span>0-T7 Timers<br>
-        <span style="color:var(--green)">C</span>0-C7 Counters
+        <span style="color:var(--green)">C</span>0-C7 Counters<br>
+        <span style="color:#b478ff">S</span>0.. SCALE &middot; AI1
       </div>
     </div>
     <div class="pal-section" style="margin-top:auto">
@@ -682,6 +767,14 @@ body { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
         <div class="mode-opt sel" id="mode-NORMAL" onclick="selMode('NORMAL')">NORMAL<br><small>( )</small></div>
         <div class="mode-opt"    id="mode-SET"    onclick="selMode('SET')">SET<br><small>(S)</small></div>
         <div class="mode-opt"    id="mode-RESET"  onclick="selMode('RESET')">RESET<br><small>(R)</small></div>
+        <div class="mode-opt"    id="mode-LOAD"   onclick="selMode('LOAD')">LOAD<br><small>(LD)</small></div>
+      </div>
+      <div id="mdl-prio-sec" style="display:none;margin-top:8px">
+        <label class="modal-lbl" style="margin-bottom:5px">Priority when SET and RESET are both true</label>
+        <div class="mode-row">
+          <div class="mode-opt sel" id="prio-S" onclick="selPrio('S')">SR<br><small>SET wins</small></div>
+          <div class="mode-opt"     id="prio-R" onclick="selPrio('R')">RS<br><small>RESET wins</small></div>
+        </div>
       </div>
     </div>
     <div class="modal-row">
@@ -713,6 +806,19 @@ body { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
   </div>
 </div>
 
+<!-- PARAMETER MODAL (CMP, SCALE, PWM, AI1) -->
+<div class="modal-bg" id="prm-modal">
+  <div class="modal-box">
+    <div class="modal-ttl" id="prm-title">Parameters</div>
+    <div id="prm-fields"></div>
+    <div class="modal-hint" id="prm-hint"></div>
+    <div class="modal-row">
+      <button class="btn-cnl" onclick="closeParamModal()">Cancel</button>
+      <button class="btn-ok"  id="prm-ok" onclick="confirmParamModal()">OK</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ================================================================
    LADDER EDITOR PRO — Core Logic
@@ -726,7 +832,13 @@ body { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
        outputs:  [ coil, ... ]
      }
      elem = { type:'CONTACT', var:'X0', negated:bool }
-     coil = { type:'COIL', var:'Y0', mode:'NORMAL'|'SET'|'RESET' }
+            | { type:'EDGE', var:'X0', edge:'P'|'N', negated? }          (v4)
+            | { type:'CMP', src:'AI1'|'S0', op, value | src2, negated? } (v4)
+            | { type:'BLOCK', blockType:TON|TOF|TP|BLINK|CTU|CTD, id, preset }
+     coil = { type:'COIL', var:'Y0', mode:'NORMAL'|'SET'|'RESET'|'LOAD', dom?:'R' }
+            | { type:'PWM', out:0..3 }                                    (v4)
+     analog rung (v4) = { id, kind:'NUM', chain:[{fn:'AI1'},{fn:'SCALE',id:'S0',...},{fn:'PWM',out}] }
+     Format version 4 (LadderAST.FORMAT_VERSION); v1-v3 projects are migrated on load.
 
    BACKWARD COMPAT: legacyToPaths() from ladder_ast.js handles old format.
    ================================================================ */
@@ -770,9 +882,9 @@ selectTool('NO', document.getElementById('pal-NO'));
 /* ── Keyboard shortcuts ────────────────────────────────────── */
 document.addEventListener('keydown', function(e){
   if(e.target.tagName==='INPUT') return;
-  var m={'1':'NO','2':'NC','3':'COIL','4':'SET','5':'RESET','6':'TON','7':'TOF','8':'CTU','9':'CTD'};
+  var m={'1':'NO','2':'NC','3':'COIL','4':'SET','5':'RESET','6':'TON','7':'TOF','8':'CTU','9':'CTD','p':'P','n':'N'};
   var p={'NO':'pal-NO','NC':'pal-NC','COIL':'pal-COIL','SET':'pal-SET','RESET':'pal-RST',
-         'TON':'pal-TON','TOF':'pal-TOF','CTU':'pal-CTU','CTD':'pal-CTD'};
+         'TON':'pal-TON','TOF':'pal-TOF','CTU':'pal-CTU','CTD':'pal-CTD','P':'pal-P','N':'pal-N'};
   if(m[e.key]){ selectTool(m[e.key], document.getElementById(p[m[e.key]])); e.preventDefault(); }
   if(e.key==='Escape') closeModal();
   if(e.key==='Delete' && selRungId && !_ctx) deleteRung(selRungId);
@@ -851,26 +963,34 @@ function delCoil(rid,ci){
 
 /* ================================================================ VALIDATION ================================================================ */
 function validateAll(){
-  var tot=0;
+  var tot=0, warns=0;
   rungs.forEach(function(r){
     tot += LadderAST.validateRung(r).length;
   });
+  LadderAST.validateProgram(rungs).forEach(function(m){ if(m.level==='error') tot++; else warns++; });
   renderAll();
-  if(tot===0){ setStatus('All '+rungs.length+' rung(s) valid'); csStatus('ok','All rungs valid'); }
+  if(tot===0){
+    var msg='All '+rungs.length+' rung(s) valid'+(warns?' ('+warns+' warning(s))':'');
+    setStatus(msg); csStatus(warns?'warn':'ok',msg);
+  }
   else       { setStatus(tot+' error(s) found');               csStatus('err',tot+' error(s)'); }
+  return tot;
 }
 
 /* ================================================================ RENDER ================================================================ */
 function renderAll(){
   var c=document.getElementById('rungs-list'); c.innerHTML='';
+  try{ _progMsgs=LadderAST.validateProgram(rungs); }catch(e){ _progMsgs=[]; }
   rungs.forEach(function(rung,ri){ c.appendChild(mkRungEl(rung,ri)); });
   updateAST(selRungId);
 }
+var _progMsgs=[];
 
 function mkRungEl(rung,ri){
   var errs=LadderAST.validateRung(rung);
+  var pmsgs=_progMsgs.filter(function(m){ return m.rung===ri; });
   var div=document.createElement('div');
-  div.className='rung'+(rung.id===selRungId?' sel':'')+(errs.length?' has-err':'');
+  div.className='rung'+(rung.id===selRungId?' sel':'')+((errs.length||pmsgs.some(function(m){return m.level==='error';}))?' has-err':'');
   div.dataset.rungId=rung.id;
   div.onclick=function(e){
     if(e.target.closest('button')||e.target.closest('.cell')||e.target.closest('.coil-cell')) return;
@@ -901,16 +1021,20 @@ function mkRungEl(rung,ri){
 
   /* body row = paths + coil zone + ctrl */
   var brow=document.createElement('div'); brow.style.cssText='display:flex;align-items:stretch;';
-  brow.appendChild(mkBodyEl(rung));
-  brow.appendChild(mkCoilZone(rung));
+  if(rung.kind==='NUM'){ brow.appendChild(mkNumBody(rung)); }
+  else { brow.appendChild(mkBodyEl(rung)); brow.appendChild(mkCoilZone(rung)); }
   brow.appendChild(mkRungCtrl(rung));
   div.appendChild(brow);
 
   /* errors */
-  if(errs.length){
+  if(errs.length || pmsgs.length){
     var ed=document.createElement('div'); ed.className='rung-errs';
     errs.forEach(function(e){
       var el=document.createElement('div'); el.className='err-line'; el.textContent='! '+e; ed.appendChild(el);
+    });
+    pmsgs.forEach(function(m){
+      var el=document.createElement('div'); el.className=m.level==='error'?'err-line':'warn-line';
+      el.textContent=(m.level==='error'?'! ':'⚠ ')+m.msg; ed.appendChild(el);
     });
     div.appendChild(ed);
   }
@@ -952,6 +1076,8 @@ function mkBodyEl(rung){
       if(elem){
         if(elem.type==='BLOCK'){
           cz.appendChild(mkBlockCell(rung.id,pi,ci,elem));
+        } else if(elem.type==='CMP'){
+          cz.appendChild(mkCmpCell(rung.id,pi,ci,elem));
         } else {
           cz.appendChild(mkContactCell(rung.id,pi,ci,elem));
         }
@@ -1012,7 +1138,10 @@ function mkBlockCell(rId, pi, ci, elem){
   portDefs.left.forEach(function(p){
     var pEl=document.createElement('div');
     pEl.className='blk-port'+(p.main?' main':'');
-    pEl.textContent=p.name+(p.value!==undefined?'\n'+p.value:'');
+    var pn=p.name;
+    if(elem.blockType==='CTU' && p.name==='R'  && _hasCoil(elem.id,'RESET')){ pn='R ●';  pEl.classList.add('wired'); }
+    if(elem.blockType==='CTD' && p.name==='LD' && _hasCoil(elem.id,'LOAD')){  pn='LD ●'; pEl.classList.add('wired'); }
+    pEl.textContent=pn+(p.value!==undefined?'\n'+p.value:'');
     lCol.appendChild(pEl);
   });
 
@@ -1063,6 +1192,9 @@ function _blockPortDefs(blockType){
     case 'TON': case 'TOF': case 'TP':
       return { left: [{name:'IN',main:true},{name:'PT',main:false}],
                right:[{name:'Q',main:true},{name:'ET',main:false}] };
+    case 'BLINK':
+      return { left: [{name:'EN',main:true},{name:'T',main:false}],
+               right:[{name:'Q',main:true}] };
     case 'CTU':
       return { left: [{name:'CU',main:true},{name:'R',main:false},{name:'PV',main:false}],
                right:[{name:'Q',main:true},{name:'CV',main:false}] };
@@ -1075,15 +1207,18 @@ function _blockPortDefs(blockType){
 }
 
 function mkContactCell(rId,pi,ci,elem){
+  var isEdge=(elem.type==='EDGE');
   var nc=(elem.negated===true);
   var div=document.createElement('div');
-  div.className='cell '+(nc?'nc':'no');
-  div.title=(nc?'NC':'NO')+' '+elem.var;
+  div.className='cell '+(isEdge?'edge':(nc?'nc':'no'));
+  div.title=isEdge?((elem.edge==='N'?'Falling edge [N] ':'Rising edge [P] ')+elem.var):((nc?'NC':'NO')+' '+elem.var);
   div.dataset.var=elem.var;   // used by updateVisualState()
 
-  var sym=document.createElement('div'); sym.className='c-sym'; sym.textContent=nc?'|/|':'| |';
+  var sym=document.createElement('div'); sym.className='c-sym';
+  sym.textContent=isEdge?('|'+(nc?'/':'')+(elem.edge==='N'?'N':'P')+'|'):(nc?'|/|':'| |');
   var addr=document.createElement('div'); addr.className='c-addr'; addr.textContent=elem.var||'?';
-  var typ=document.createElement('div');  typ.className='c-type'; typ.textContent=nc?'NC':'NO';
+  var typ=document.createElement('div');  typ.className='c-type';
+  typ.textContent=isEdge?(elem.edge==='N'?'FALLING':'RISING'):(nc?'NC':'NO');
   var del=document.createElement('div');  del.className='c-del'; del.textContent='x';
   del.title='Delete';
   (function(a,b,c){ del.onclick=function(e){ e.stopPropagation(); delElem(a,b,c); }; })(rId,pi,ci);
@@ -1109,11 +1244,7 @@ function mkEmptyCell(rId,pi,ci){
   ph.style.cssText='font-family:var(--font-mono);font-size:12px;color:var(--border2);';
   ph.textContent='+'; div.appendChild(ph);
 
-  div.onclick=function(){
-    if(selTool==='COIL'||selTool==='SET'||selTool==='RESET'){ openCoilModal(rId,null,null); }
-    else if(_isBlockTool(selTool)){ openBlockModal(rId,pi,ci,null); }
-    else openContModal(rId,pi,ci,null);
-  };
+  div.onclick=function(){ placeTool(selTool,rId,pi,ci); };
 
   div.ondragover =function(e){ e.preventDefault(); div.classList.add('drop-tgt'); };
   div.ondragleave=function(){  div.classList.remove('drop-tgt'); };
@@ -1122,10 +1253,7 @@ function mkEmptyCell(rId,pi,ci){
     var pt=e.dataTransfer.getData('pal-type');
     var cs=e.dataTransfer.getData('cell-src');
     if(pt){
-      var prev=selTool; selTool=pt;
-      if(_isBlockTool(pt)) openBlockModal(rId,pi,ci,null);
-      else openContModal(rId,pi,ci,null);
-      selTool=prev;
+      placeTool(pt,rId,pi,ci);
     } else if(cs){
       var src=JSON.parse(cs);
       var elem=src.elem;
@@ -1140,20 +1268,28 @@ function mkCoilZone(rung){
   var div=document.createElement('div'); div.className='coil-zone';
 
   rung.outputs.forEach(function(coil,ci){
+    var isPwm=(coil.type==='PWM');
+    var isC=!isPwm && /^C/i.test(coil.var||'');
     var cc=document.createElement('div');
-    cc.className='coil-cell'+(coil.mode==='SET'?' set-c':coil.mode==='RESET'?' rst-c':'');
-    cc.title=coil.mode+' '+coil.var;
-    cc.dataset.var=coil.var;   // used by updateVisualState()
+    cc.className='coil-cell'+(isPwm?' pwm-c':coil.mode==='LOAD'?' ld-c':coil.mode==='SET'?' set-c':coil.mode==='RESET'?' rst-c':'');
+    cc.title=isPwm?('PWM'+((coil.out|0)+1)):(coil.mode+' '+coil.var);
+    cc.dataset.var=isPwm?'':coil.var;   // used by updateVisualState()
 
-    var syms={NORMAL:'( )',SET:'(S)',RESET:'(R)'};
-    var sym=document.createElement('div');  sym.className='co-sym';  sym.textContent=syms[coil.mode]||'( )';
-    var addr=document.createElement('div'); addr.className='co-addr'; addr.textContent=coil.var||'?';
-    var mode=document.createElement('div'); mode.className='co-mode'; mode.textContent=coil.mode||'NORMAL';
+    var syms={NORMAL:'( )',SET:'(S)',RESET:'(R)',LOAD:'(LD)'};
+    var sym=document.createElement('div');  sym.className='co-sym';  sym.textContent=isPwm?'(PWM)':(syms[coil.mode]||'( )');
+    var addr=document.createElement('div'); addr.className='co-addr'; addr.textContent=isPwm?('PWM'+((coil.out|0)+1)):(coil.var||'?');
+    var mode=document.createElement('div'); mode.className='co-mode';
+    var caption=coil.mode||'NORMAL';
+    if(isPwm) caption='ON = 4095';
+    else if(isC && coil.mode==='RESET') caption='RESET (CTU R)';
+    else if(isC && coil.mode==='LOAD')  caption='LOAD (CTD LD)';
+    else if(coil.mode==='SET' || coil.mode==='RESET') caption=coil.mode+(coil.dom==='R'?' · RS (R wins)':' · SR (S wins)');
+    mode.textContent=caption;
     var del=document.createElement('div');  del.className='c-del';    del.textContent='x';
     (function(rId,i){ del.onclick=function(e){ e.stopPropagation(); delCoil(rId,i); }; })(rung.id,ci);
 
     cc.appendChild(sym); cc.appendChild(addr); cc.appendChild(mode); cc.appendChild(del);
-    (function(rId,c,i){ cc.onclick=function(e){ if(e.target===del) return; openCoilModal(rId,c,i); }; })(rung.id,coil,ci);
+    (function(rId,c,i){ cc.onclick=function(e){ if(e.target===del) return; if(c.type==='PWM') openPwmCoilModal(rId,c,i); else openCoilModal(rId,c,i); }; })(rung.id,coil,ci);
     div.appendChild(cc);
   });
 
@@ -1181,16 +1317,21 @@ function mkRungCtrl(rung){
 /* ================================================================ MODAL ================================================================ */
 
 /* Block tool check helper */
-function _isBlockTool(t){ return t==='TON'||t==='TOF'||t==='TP'||t==='CTU'||t==='CTD'; }
+function _isBlockTool(t){ return t==='TON'||t==='TOF'||t==='TP'||t==='BLINK'||t==='CTU'||t==='CTD'; }
 
 function openContModal(rId,pi,ci,existing){
   // If the selected tool is a block type, redirect to block modal
   if(_isBlockTool(selTool) && !existing){ openBlockModal(rId,pi,ci,null); return; }
-  var nc=(selTool==='NC')||(existing&&existing.negated);
-  _ctx={ type:'contact', rId:rId, pi:pi, ci:ci, negated:nc };
-  document.getElementById('mdl-title').textContent=nc?'NC Contact':'NO Contact';
-  document.getElementById('mdl-lbl').textContent='Address (e.g. X0, M3, T0)';
-  document.getElementById('mdl-hint').textContent='X=input  Y=output  M=marker  T=timer  C=counter';
+  var edge=null;
+  if(existing && existing.type==='EDGE') edge=existing.edge==='N'?'N':'P';
+  else if(!existing && (selTool==='P'||selTool==='N')) edge=selTool;
+  var nc=edge ? !!(existing&&existing.negated) : ((selTool==='NC')||(existing&&existing.negated));
+  _ctx={ type:'contact', rId:rId, pi:pi, ci:ci, negated:nc, edge:edge };
+  document.getElementById('mdl-title').textContent=edge?(edge==='P'?'Rising edge [P]':'Falling edge [N]'):(nc?'NC Contact':'NO Contact');
+  document.getElementById('mdl-lbl').textContent=edge?'Signal (edge detected on this address)':'Address (e.g. X0, M3, T0)';
+  document.getElementById('mdl-hint').textContent=edge
+    ? 'True for ONE scan when the signal goes '+(edge==='P'?'0→1':'1→0')+'. X, Y, M, or a block Q (T0, C0).'
+    : 'X=input  Y=output  M=marker  T0/C0 = Q output of a timer/counter block (use NC for NOT Q)';
   document.getElementById('mdl-mode-sec').style.display='none';
   var inp=document.getElementById('mdl-addr');
   inp.value=existing?(existing.var||''):'X0';
@@ -1201,13 +1342,14 @@ function openContModal(rId,pi,ci,existing){
 var _blockCtx=null;
 function openBlockModal(rId,pi,ci,existing){
   var bt=existing?existing.blockType:selTool;
-  var defaultId={TON:'T0',TOF:'T1',TP:'T2',CTU:'C0',CTD:'C1'}[bt]||'T0';
-  var defaultPreset=bt.startsWith('C')?10:1000; // counters: count, timers: ms
+  var defaultId={TON:'T0',TOF:'T1',TP:'T2',BLINK:'T3',CTU:'C0',CTD:'C1'}[bt]||'T0';
+  var isCounter=(bt==='CTU'||bt==='CTD');
+  var defaultPreset=isCounter?10:(bt==='BLINK'?500:1000); // counters: count, timers: ms
   _blockCtx={ rId:rId, pi:pi, ci:ci, blockType:bt };
   document.getElementById('blk-modal-title').textContent=bt;
   document.getElementById('blk-modal-id').value=existing?(existing.id||defaultId):defaultId;
   document.getElementById('blk-modal-preset').value=existing?(existing.preset||defaultPreset):defaultPreset;
-  document.getElementById('blk-modal-preset-lbl').textContent=bt.startsWith('C')?'Preset (count)':'Preset (ms)';
+  document.getElementById('blk-modal-preset-lbl').textContent=isCounter?'Preset (count)':(bt==='BLINK'?'Period (ms)':'Preset (ms)');
   document.getElementById('blk-modal').classList.add('show');
   setTimeout(function(){ document.getElementById('blk-modal-id').focus(); document.getElementById('blk-modal-id').select(); },80);
 }
@@ -1219,12 +1361,13 @@ function closeBlockModal(){
 
 function confirmBlockModal(){
   var id=document.getElementById('blk-modal-id').value.trim().toUpperCase();
-  var preset=parseInt(document.getElementById('blk-modal-preset').value,10)||0;
+  var presetRaw=String(document.getElementById('blk-modal-preset').value).trim();
+  var preset=parseInt(presetRaw,10)||0;
   if(!id||!_blockCtx){ closeBlockModal(); return; }
-  // Validate: T for timer, C for counter
   var bt=_blockCtx.blockType;
-  var expectedArea=bt.startsWith('C')?'C':'T';
-  if(!new RegExp('^'+expectedArea+'\\d+$').test(id)){
+  var expectedArea=(bt==='CTU'||bt==='CTD')?'C':'T';
+  var bad=!new RegExp('^'+expectedArea+'\\d+$').test(id) || preset<0 || (presetRaw!=='' && !/^\d+$/.test(presetRaw));
+  if(bad){
     var inp=document.getElementById('blk-modal-id');
     inp.style.borderColor='var(--red)';
     setTimeout(function(){ inp.style.borderColor=''; },700);
@@ -1241,16 +1384,17 @@ document.getElementById('blk-modal-id').addEventListener('keydown',function(e){
   if(e.key==='Enter') confirmBlockModal();
   if(e.key==='Escape') closeBlockModal();
 });
-function openCoilModal(rId,existing,ci){
+function openCoilModal(rId,existing,ci,presetMode,presetVar){
   _ctx={ type:'coil', rId:rId, ci:ci };
-  _coilMode=(existing&&existing.mode)||'NORMAL';
+  _coilMode=(existing&&existing.mode)||presetMode||'NORMAL';
+  _coilPrio=(existing&&existing.dom==='R')?'R':'S';
   document.getElementById('mdl-title').textContent='Output Coil';
-  document.getElementById('mdl-lbl').textContent='Address (e.g. Y0, M3)';
-  document.getElementById('mdl-hint').textContent='Y=output  M=marker (SET/RESET latch)';
+  document.getElementById('mdl-lbl').textContent='Address (e.g. Y0, M3, C0)';
+  document.getElementById('mdl-hint').textContent='Y=output  M=marker (SET/RESET latch)  C=counter (RESET for CTU, LOAD for CTD)';
   document.getElementById('mdl-mode-sec').style.display='block';
-  selMode(_coilMode);
+  selMode(_coilMode); selPrio(_coilPrio);
   var inp=document.getElementById('mdl-addr');
-  inp.value=existing?(existing.var||'Y0'):'Y0';
+  inp.value=existing?(existing.var||'Y0'):(presetVar||'Y0');
   showModal();
 }
 
@@ -1266,9 +1410,15 @@ function closeModal(){
 
 function selMode(m){
   _coilMode=m;
-  ['NORMAL','SET','RESET'].forEach(function(id){
-    document.getElementById('mode-'+id).classList.toggle('sel',id===m);
+  ['NORMAL','SET','RESET','LOAD'].forEach(function(id){
+    var el=document.getElementById('mode-'+id); if(el) el.classList.toggle('sel',id===m);
   });
+  var ps=document.getElementById('mdl-prio-sec');
+  if(ps) ps.style.display=(m==='SET'||m==='RESET')?'block':'none';
+}
+function selPrio(p){
+  _coilPrio=p;
+  ['S','R'].forEach(function(id){ var el=document.getElementById('prio-'+id); if(el) el.classList.toggle('sel',id===p); });
 }
 
 function confirmModal(){
@@ -1282,15 +1432,36 @@ function confirmModal(){
   }
   var ctx=_ctx; closeModal();
   if(ctx.type==='contact'){
-    var nc=(selTool==='NC')||ctx.negated;
-    setElem(ctx.rId,ctx.pi,ctx.ci,{ type:'CONTACT', var:addr, negated:nc });
-    setStatus('Placed '+(nc?'NC':'NO')+' '+addr);
+    if(ctx.edge){
+      var ee={ type:'EDGE', var:addr, edge:ctx.edge };
+      if(ctx.negated) ee.negated=true;
+      setElem(ctx.rId,ctx.pi,ctx.ci,ee);
+      setStatus('Placed edge ['+ctx.edge+'] '+addr);
+    } else {
+      var nc=(selTool==='NC')||ctx.negated;
+      setElem(ctx.rId,ctx.pi,ctx.ci,{ type:'CONTACT', var:addr, negated:nc });
+      setStatus('Placed '+(nc?'NC':'NO')+' '+addr);
+    }
   } else {
     var coil={ type:'COIL', var:addr, mode:_coilMode };
+    // Priority only applies to SET/RESET latches (not counters); stored only when RS
+    var domVar=null;
+    if((_coilMode==='SET'||_coilMode==='RESET') && !/^C/.test(addr)){
+      if(_coilPrio==='R') coil.dom='R';
+      domVar=addr;
+    }
     if(ctx.ci!==null&&ctx.ci!==undefined){
-      var r=getRung(ctx.rId); if(r) r.outputs[ctx.ci]=coil; renderAll();
-    } else addCoil(ctx.rId,coil);
-    setStatus('Coil '+_coilMode+' '+addr);
+      var r=getRung(ctx.rId); if(r) r.outputs[ctx.ci]=coil;
+    } else { var r2=getRung(ctx.rId); if(r2) r2.outputs.push(coil); }
+    // every SET/RESET coil of the same address must share the priority
+    if(domVar){
+      rungs.forEach(function(rr){ (rr.outputs||[]).forEach(function(c){
+        if(c.type!=='PWM' && String(c.var||'').toUpperCase()===domVar && (c.mode==='SET'||c.mode==='RESET')){
+          if(_coilPrio==='R') c.dom='R'; else delete c.dom;
+        } }); });
+    }
+    renderAll();
+    setStatus('Coil '+_coilMode+' '+addr+(domVar?(_coilPrio==='R'?' (RS: reset wins)':' (SR: set wins)'):''));
   }
   updateAST(ctx.rId);
 }
@@ -1311,12 +1482,20 @@ function updateAST(rid){
   var errs=LadderAST.validateRung(r);
   if(errs.length){
     el.innerHTML='<span class="ast-err">! '+errs.length+' error(s)</span><br>'+
-      errs.map(function(e){ return '<span class="ast-err">'+e+'</span>'; }).join('<br>');
+      errs.map(function(e){ return '<span class="ast-err">'+esc(e)+'</span>'; }).join('<br>');
+    return;
+  }
+  if(r.kind==='NUM'){
+    var txt=(r.chain||[]).map(function(b){ return esc(String(b.fn).toUpperCase()+(b.id?' '+b.id:'')+(String(b.fn).toUpperCase()==='PWM'?' PWM'+((b.out|0)+1):'')); }).join(' → ');
+    el.innerHTML='<span class="ast-ok">Analog chain</span><br><span style="color:var(--accent2)">'+txt+'</span>';
     return;
   }
   var ast=LadderAST.rungToAST(r);
   var expr=astStr(ast.expr);
-  var outs=ast.outputs.map(function(c){ return c.var+'['+c.mode+']'; }).join(', ');
+  var outs=ast.outputs.map(function(c){
+    if(c.type==='PWM') return 'PWM'+((c.out|0)+1)+'[ON/OFF]';
+    return esc(c.var)+'['+esc(c.mode)+(c.dom==='R'?'/RS':'')+']';
+  }).join(', ');
   el.innerHTML='<span class="ast-ok">Valid AST</span><br>'+
     '<span style="color:var(--text-dim)">Expr: </span>'+expr+'<br>'+
     '<span style="color:var(--text-dim)">Outs: </span><span style="color:var(--accent)">'+(outs||'none')+'</span>';
@@ -1325,81 +1504,49 @@ function updateAST(rid){
 function astStr(n){
   if(!n) return '0';
   switch(n.op){
-    case 'VAR':  return '<span style="color:var(--text)">'+n.var+'</span>';
+    case 'VAR':  return '<span style="color:var(--text)">'+esc(n.var)+'</span>';
     case 'NOT':  return '!(' +astStr(n.arg)+')';
-    case 'AND':  return '('+astStr(n.left)+' & '+astStr(n.right)+')';
+    case 'AND':  return '('+astStr(n.left)+' &amp; '+astStr(n.right)+')';
     case 'OR':   return '('+astStr(n.left)+' | '+astStr(n.right)+')';
     case 'TRUE': return '<span style="color:var(--green)">1</span>';
     case 'FALSE':return '<span style="color:var(--red)">0</span>';
-    case 'BLOCK':return '<span style="color:var(--accent2)">['+n.blockType+':'+n.var+']</span>';
-    default:     return n.op;
+    case 'BLOCK':return '<span style="color:var(--accent2)">['+esc(n.blockType)+':'+esc(n.var)+']</span>';
+    case 'EDGE': return '<span style="color:var(--yellow)">['+esc(n.edge)+' '+esc(n.var)+']</span>';
+    case 'CMP':  return '<span style="color:#b478ff">['+esc(n.src)+' '+esc(n.cmpOp)+' '+esc(n.src2!==undefined?n.src2:n.value)+']</span>';
+    default:     return esc(n.op);
   }
 }
 
 /* ================================================================ COMPILE & SEND ================================================================ */
-function compileAndSend(){
+/* Compila y valida SIN efectos de interfaz ni red: lo usan «Guardar en PLC» y «Exportar proyecto»,
+   de modo que ambos pasan por el mismo compilador y las mismas validaciones. */
+function buildLadderEnvelope(){
   // ── Step 1: UI validation (LadderAST paths model) ─────────────
   var allErrs=[];
+  LadderAST.validateProgram(rungs).forEach(function(m){ if(m.level==='error') allErrs.push('Rung '+(m.rung+1)+': '+m.msg); });
   rungs.forEach(function(r,ri){
     LadderAST.validateRung(r).forEach(function(e){
       allErrs.push('Rung '+(ri+1)+': '+e);
     });
   });
-  renderAll();
-  if(allErrs.length){
-    csStatus('err',allErrs.length+' error(s) — fix before compile');
-    setStatus(allErrs[0]);
-    return;
-  }
+  if(allErrs.length) return { ok:false, stage:'validate', errors:allErrs, message:allErrs[0] };
 
-  // ── Step 2: Choose compilation model ──────────────────────────
-  // When LadderProgram (ladder_program.js) is available AND the
-  // rungs can be converted to the AST model, use compileLadderAST.
-  // Otherwise fall back to the Bloque-3 compileLadder (paths model).
+  // ── Step 2: Compilation ───────────────────────────────────────
+  // ÚNICA ruta: PlcCompiler.compileLadder (modelo de rutas "paths"), la misma para programas nuevos y antiguos,
+  // con o sin bloques. Ver tests/t_e4_route.js.
   var ir;
-  var usedModel;
-
-  // Detect if any rung has BLOCK elements (TON/TOF/CTU/CTD).
-  // compileLadder (paths model) has full BLOCK support (wires IN/PT ports correctly).
-  // compileLadderAST only sees blocks as plain contacts — so for programs with blocks
-  // we route directly to compileLadder and skip the AST path.
-  var hasBlocks = rungs.some(function(rung) {
-    return (rung.paths || []).some(function(path) {
-      return (path || []).some(function(elem) { return elem && elem.type === 'BLOCK'; });
-    });
-  });
-
-  if (typeof LadderProgram !== 'undefined' && !hasBlocks) {
-    // ── AST model (Fase 1-6 ladder_program.js) — contact-only programs ──
-    try {
-      var astProgram = _rungs_to_ladder_ast(rungs);
-      ir = PlcCompiler.compileLadderAST(astProgram);
-      usedModel = 'ladder_ast';
-    } catch(e) {
-      console.warn('[compileAndSend] AST compile failed, falling back:', e.message);
-      ir = null;
-    }
-  }
-  if (hasBlocks) {
-    // Programs with function blocks always use the paths compiler (full BLOCK support)
-    console.info('[compileAndSend] Function blocks detected — using ladder_paths compiler');
-  }
-
-  if (!ir) {
-    // ── Bloque-3 paths model fallback ───────────────────────────
-    var ladderSrc = {
-      rungs: rungs.map(function(rung){
-        return { id:rung.id, comment:rung.comment||'', paths:rung.paths, outputs:rung.outputs };
-      })
-    };
-    try {
-      ir = PlcCompiler.compileLadder(ladderSrc);
-      usedModel = 'ladder_paths';
-    } catch(e) {
-      csStatus('err','Compile: '+e.message);
-      setStatus('Error: '+e.message);
-      return;
-    }
+  var usedModel = 'ladder_paths';
+  var ladderSrc = {
+    rungs: rungs.map(function(rung){
+      var o = { id:rung.id, comment:rung.comment||'', paths:rung.paths, outputs:rung.outputs };
+      if (rung.kind === 'NUM') { o.kind = 'NUM'; o.chain = rung.chain; }
+      return o;
+    })
+  };
+  try {
+    ir = PlcCompiler.compileLadder(ladderSrc);
+  } catch(e) {
+    return { ok:false, stage:'compile', message:e.message };
   }
 
   // ── Step 3: IR validation ──────────────────────────────────────
@@ -1409,20 +1556,18 @@ function compileAndSend(){
 
   if(!validation.ok){
     var errMsg = validation.errors.map(function(e){ return e.code+': '+e.message; }).join('\n');
-    alert('Errores IR (guardar bloqueado):\n\n'+errMsg);
-    csStatus('err',validation.errors.length+' critical error(s)');
-    return;
+    return { ok:false, stage:'ir', message:errMsg, errors:validation.errors };
   }
   if(validation.warnings.length > 0) console.warn('[compile] IR warnings:', validation.warnings);
+  var irWarn = (ir.meta && ir.meta.warnings) ? ir.meta.warnings.filter(function(w){ return w.code !== 'VAR_READ_NOT_WRITTEN' || true; }) : [];
+  if(irWarn.length) console.warn('[compile] Ladder warnings:', irWarn);
 
   // ── Step 4: Synthesise drawflow for the runtime ────────────────
   var drawflowObj;
   try {
     drawflowObj = PlcCompiler.irToDrawflow(ir.program.nodes);
   } catch(e) {
-    csStatus('err','Drawflow synthesis: '+e.message);
-    setStatus('Error: '+e.message);
-    return;
+    return { ok:false, stage:'drawflow', message:e.message };
   }
 
   // ── Step 5: Build program envelope ────────────────────────────
@@ -1432,14 +1577,18 @@ function compileAndSend(){
   // Keep the paths-format rungs in 'ladder' field for UI restore.
   // If AST model was used, also store the AST program for future tools.
   var ladderField = {
+    formatVersion: LadderAST.FORMAT_VERSION,
     rungs: rungs.map(function(rung){
-      return { id:rung.id, comment:rung.comment||'', paths:rung.paths, outputs:rung.outputs };
+      var o = { id:rung.id, comment:rung.comment||'', paths:rung.paths, outputs:rung.outputs };
+      if (rung.kind === 'NUM') { o.kind = 'NUM'; o.chain = rung.chain; }
+      return o;
     })
   };
 
-  // A4 FIX: hoist ir.order[] to envelope root so parseProgram() finds
-  // it at doc["order"] (it reads the flat JSON root, not doc["ir"]["order"]).
-  // Without this, hasIROrder=false and the runtime ignores the IR topology.
+  // ir.order[] is hoisted to the envelope root as informative data only.
+  // The runtime (plc_runtime.cpp) does NOT read it: parseProgram() rebuilds
+  // its own deterministic execution order from drawflow.Home.data
+  // (plcBuildExecOrder), identical to PlcCompiler's _topo and to the simulator.
   //
   // NOTE ON drawflow FIELD:
   // drawflowObj here comes from irToDrawflow() — it has id/name/data/outputs
@@ -1459,6 +1608,37 @@ function compileAndSend(){
     symbolTable:  symbolTable
   };
 
+  return { ok:true, envelope:envelope, ir:ir, nc:nc, usedModel:usedModel, irWarn:irWarn, symbolTable:symbolTable, ladder:ladderField };
+}
+
+function compileAndSend(){
+  if (_protect) {
+    csStatus('err','COMPILE bloqueado: el programa '+_protect.label+' guardado no se pudo convertir');
+    setStatus('Se conserva el programa guardado. Usá "Empezar un Ladder nuevo" en el aviso para reemplazarlo.');
+    showConvBanner('warn','COMPILE bloqueado para no pisar el programa '+_protect.label+' guardado.',_protect.reasons,
+      [{ label:'Empezar un Ladder nuevo (reemplazará el programa guardado al compilar)', fn:function(){ _protect=null; hideConvBanner(); csStatus('ok','Ready'); } }]);
+    return;
+  }
+  var bld = buildLadderEnvelope();
+  renderAll();
+  if(!bld.ok){
+    if(bld.stage==='validate'){ csStatus('err',bld.errors.length+' error(s) — fix before compile'); setStatus(bld.message); }
+    else if(bld.stage==='compile'){ csStatus('err','Compile: '+bld.message); setStatus('Error: '+bld.message); }
+    else if(bld.stage==='ir'){ alert('Errores IR (guardar bloqueado):\n\n'+bld.message); csStatus('err',bld.errors.length+' critical error(s)'); }
+    else { csStatus('err','Drawflow synthesis: '+bld.message); setStatus('Error: '+bld.message); }
+    return;
+  }
+  var envelope=bld.envelope, ir=bld.ir, nc=bld.nc, usedModel=bld.usedModel, irWarn=bld.irWarn, symbolTable=bld.symbolTable;
+
+  // Un proyecto recién importado NO se guarda en el PLC sin confirmación explícita.
+  if (window.__projImportPending) {
+    if (!confirm('Vas a REEMPLAZAR el programa guardado en '+PlcProject.targetName()+' por el proyecto importado «'+window.__projImportPending.name+'».\n\n¿Continuar?')) {
+      projMsg('warn','Guardado cancelado. El programa que estaba en '+PlcProject.targetName()+' no se modificó.');
+      csStatus('warn','Guardado cancelado'); setStatus('Cancelado — el PLC no se modificó');
+      return;
+    }
+  }
+
   // ── Step 6: POST to /save, reload runtime ─────────────────────
   setStatus('Compiled '+nc+' nodes ('+usedModel+') — sending...');
   csStatus('warn','Sending...');
@@ -1467,12 +1647,15 @@ function compileAndSend(){
     .then(function(){ return PlcApi.plcReload(); })
     .then(function(){
       refreshBadge();
+      window.__projImportPending = null;
+      projMsg('ok', PlcProject.isEmbedded() ? 'Programa compilado, validado y guardado en el PLC ('+nc+' nodos).' : 'Programa compilado y validado ('+nc+' nodos). Enviado al PLC SIMULADO: no se guardó en ningún hardware.');
       var symCount = symbolTable ? symbolTable.symbols.length : 0;
-      csStatus('ok',nc+' nodes | '+symCount+' symbols | '+usedModel);
+      csStatus(irWarn.length?'warn':'ok',nc+' nodes | '+symCount+' symbols | '+usedModel+(irWarn.length?' | '+irWarn.length+' warning(s): '+irWarn[0].message:''));
       setStatus('Loaded — '+nc+' nodes via '+usedModel);
       document.getElementById('cs-nc').textContent=nc+' nodes';
       flash();
       try{ sessionStorage.setItem('ld_pro_v2',JSON.stringify(rungs)); }catch(e){}
+      window.__lastEnvelope = envelope;
       if(symbolTable) console.info('[ladder] Symbol table:', symbolTable.stats);
     })
     .catch(function(e){
@@ -1492,6 +1675,9 @@ function _rungs_to_ladder_ast(rungs) {
     if (!elem) return null;
     if (elem.type === 'CONTACT') {
       return LP.contact(elem.var, elem.negated ? 'NC' : 'NO');
+    }
+    if (elem.type !== 'CONTACT' && elem.type !== 'BLOCK') {
+      throw new Error('The AST compiler cannot represent element ' + elem.type + ' (use the paths compiler)');
     }
     if (elem.type === 'BLOCK') {
       // A BLOCK in a path conditions the rung — treat the block's Q output
@@ -1577,14 +1763,8 @@ function loadDraft(){
   try{
     var d=sessionStorage.getItem('ld_pro_v2');
     if(d){
-      var parsed=JSON.parse(d);
-      rungs=parsed.map(function(r){
-        var m=LadderAST.legacyToPaths(r);
-        if(!m.id) m.id=uid();
-        if(!m.comment) m.comment='';
-        return m;
-      });
-      renderAll(); setStatus('Draft restored'); return true;
+      var res=adoptProgram(JSON.parse(d));
+      if(res.ok){ renderAll(); setStatus('Draft restored'); return true; }
     }
   } catch(e){}
   return false;
@@ -1596,32 +1776,122 @@ function clearAll(){
 }
 
 function exportJSON(){
-  var data=JSON.stringify({format:'ladder-pro',version:3,source:'ladder',rungs:rungs},null,2);
+  var data=JSON.stringify({format:'ladder-pro',version:LadderAST.FORMAT_VERSION,source:'ladder',rungs:rungs},null,2);
   var a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));
   a.download='ladder_program.json'; a.click();
   setStatus('Exported ladder_program.json');
+  return data;
 }
 
 function importJSON(inp){
   var f=inp.files[0]; if(!f) return;
   var rd=new FileReader();
-  rd.onload=function(e){
-    try{
-      var data=JSON.parse(e.target.result);
-      var raw=data.rungs||(Array.isArray(data)?data:[]);
-      rungs=raw.map(function(r){
-        var m=LadderAST.legacyToPaths(r);
-        if(!m.id) m.id=uid();
-        if(!m.comment) m.comment='';
-        return m;
-      });
-      renderAll(); setStatus('Imported '+rungs.length+' rung(s)');
-    } catch(ex){ setStatus('Import error: '+ex.message); }
-    inp.value='';
-  };
+  rd.onload=function(e){ importText(e.target.result); inp.value=''; };
   rd.readAsText(f);
 }
+/* Atomic import: the current program is only replaced if the file is valid. */
+function importText(text){
+  try{
+    var data=JSON.parse(text);
+    var before=rungs;
+    var res=adoptProgram(data);
+    if(!res.ok){ rungs=before; setStatus('Import error: '+res.notes.join(' ')); csStatus('err','Import failed — current program kept'); return false; }
+    _protect=null; hideConvBanner();
+    renderAll();
+    setStatus('Imported '+rungs.length+' rung(s)'+(res.notes.length?' — '+res.notes.join(' '):''));
+    csStatus(res.notes.length?'warn':'ok','Imported '+rungs.length+' rung(s)');
+    return true;
+  } catch(ex){ setStatus('Import error: '+ex.message); csStatus('err','Import failed — current program kept'); return false; }
+}
+
+
+/* ═══════════ Proyectos portables .plc ═══════════ */
+function projMsg(kind, text){
+  var el=document.getElementById('proj-msg'); if(!el) return;
+  el.className='proj-msg '+kind; el.textContent=text; el.style.display=text?'block':'none';
+}
+function projName(){ var el=document.getElementById('proj-name'); return PlcProject.sanitizeName(el?el.value:''); }
+function currentLadderField(){
+  return { formatVersion: LadderAST.FORMAT_VERSION, rungs: rungs.map(function(rung){
+    var o={ id:rung.id, comment:rung.comment||'', paths:rung.paths, outputs:rung.outputs };
+    if(rung.kind==='NUM'){ o.kind='NUM'; o.chain=rung.chain; }
+    return o;
+  }) };
+}
+function _ladderIsBlank(){
+  return rungs.every(function(r){
+    var np=(r.paths||[]).filter(function(p){ return Array.isArray(p)&&p.length; }).length;
+    return !np && !(r.outputs||[]).length && !(r.chain||[]).length;
+  });
+}
+
+/* Exportar: descarga un .plc con los renglones editables + el IR compilado (si compila). No toca el PLC. */
+function exportProject(){
+  if(_ladderIsBlank()){ projMsg('err','No hay nada que exportar: el programa Ladder está vacío.'); return null; }
+  var bld=buildLadderEnvelope();
+  var name=projName();
+  var proj=PlcProject.build({ name:name, editor:'ladder', ladder:bld.ok?bld.ladder:currentLadderField(), ir:bld.ok?bld.ir:null, origin:PlcProject.isEmbedded()?'esp32':'simulator' });
+  var text=PlcProject.serialize(proj), fname=PlcProject.fileNameFor(name);
+  PlcProject.download(fname,text);
+  projMsg(bld.ok?'ok':'warn','Proyecto exportado: '+fname+' ('+rungs.length+' renglones, '+text.length+' bytes).'+(bld.ok?'':'\nAviso: el programa aún no compila ('+bld.message+'); se exportó sin IR. Se podrá abrir y corregir.'));
+  return text;
+}
+
+/* Importar: leer → validar → confirmar → reconstruir el editor. Nunca toca el PLC: para guardar hay que pulsar «Guardar en PLC». */
+function importProject(inp){
+  var f=inp&&inp.files&&inp.files[0];
+  if(inp){ try{ inp.value=''; }catch(e){} }
+  if(!f) return Promise.resolve(false);
+  return PlcProject.readFile(f).then(function(text){ return importProjectText(text,f.name); })
+    .catch(function(e){ projMsg('err','No se pudo importar: '+e.message+'\nEl editor y el programa del PLC siguen sin cambios.'); return false; });
+}
+function importProjectText(text,fname){
+  var r=PlcProject.parse(text,{ladderAst:LadderAST});
+  if(!r.ok){ projMsg('err','No se pudo importar '+(fname||'el archivo')+':\n- '+r.errors.join('\n- ')+'\nEl editor y el programa del PLC siguen sin cambios.'); return false; }
+  var P=r.project, newRungs=null, notes=r.warnings.slice(), kind='ok', from='Ladder';
+  try{
+    if(P.editor==='ladder'){
+      var mig=LadderAST.migrateProgram({ ladder:P.diagram.ladder },uid);
+      if(!mig.rungs||!mig.rungs.length){ projMsg('err','No se pudo importar: '+(mig.notes[0]||'sin renglones')+'\nEl editor y el programa del PLC siguen sin cambios.'); return false; }
+      newRungs=mig.rungs; mig.notes.forEach(function(n){ notes.push(n); });
+    } else {
+      from='FBD';
+      var ir=PlcCompiler.compileProject(P.diagram.fbd,'fbd');
+      var v=(typeof PlcSymbolTable!=='undefined')?PlcSymbolTable.validate(ir.program.nodes):{ok:true,errors:[]};
+      if(!v.ok){ projMsg('err','El proyecto FBD «'+P.name+'» no es válido para el PLC:\n- '+v.errors.map(function(e){return e.code+': '+e.message;}).join('\n- ')+'\nEl editor y el programa del PLC siguen sin cambios.'); return false; }
+      var cv=convertIR(ir);
+      if(!cv.ok){ projMsg('err','El proyecto FBD «'+P.name+'» no se puede convertir a Ladder:\n- '+cv.reasons.join('\n- ')+'\nAbrilo en el editor FBD. El editor y el programa del PLC siguen sin cambios.'); return false; }
+      newRungs=cv.rungs.map(function(rr){ return LadderAST.migrateRung(rr,uid); });
+      notes.push('FBD convertido a Ladder'+(cv.verified?' (equivalencia verificada)':' (sin verificar)')+'.');
+      (cv.warnings||[]).forEach(function(w){ notes.push(String(w)); });
+    }
+  } catch(e){ projMsg('err','El proyecto no se pudo reconstruir: '+e.message+'\nEl editor y el programa del PLC siguen sin cambios.'); return false; }
+  if(!confirm('Importar el proyecto «'+P.name+'» ('+from+', '+newRungs.length+' renglones)?'+(_ladderIsBlank()?'':'\n\nEsto REEMPLAZA el programa abierto en el editor.')+'\nNo se guarda nada en el PLC hasta que presiones «Guardar en PLC».')){
+    projMsg('warn','Importación cancelada. Nada fue modificado.'); return false;
+  }
+  rungs=newRungs; _syncUid(); selRungId=null; _protect=null; hideConvBanner();
+  renderAll();
+  var nm=document.getElementById('proj-name'); if(nm) nm.value=P.name;
+  // Compilación equivalente: se recompila lo importado y se compara con el IR que trae el archivo.
+  var bld=buildLadderEnvelope();
+  if(!bld.ok){ kind='warn'; notes.push('El programa importado no compila todavía: '+bld.message); }
+  else if(P.ir && P.editor==='ladder'){
+    if(PlcProject.irKey(P.ir)===PlcProject.irKey(bld.ir)) notes.push('La compilación coincide con la del archivo.');
+    else { kind='warn'; notes.push('La compilación NO coincide con el IR del archivo (se usará siempre la recompilada).'); }
+  }
+  if(r.warnings.length) kind='warn';
+  window.__projImportPending={ name:P.name };
+  setStatus('Proyecto importado — falta Guardar en PLC'); csStatus('warn',rungs.length+' renglón(es) importados — sin guardar en el PLC');
+  projMsg(kind,'Proyecto «'+P.name+'» importado ('+rungs.length+' renglones).\n'+notes.join('\n')+'\nTodavía NO está guardado en '+PlcProject.targetName()+': presioná «Guardar en PLC» para validarlo y enviarlo.');
+  return true;
+}
+window.addEventListener('DOMContentLoaded',function(){
+  if(!PlcProject.isEmbedded()){
+    var sv=document.getElementById('btn-save-plc');
+    if(sv){ sv.innerHTML='&#x2B06; Guardar en PLC (simulado)'; sv.title='Simulador: envía el programa al PLC simulado, no a hardware'; }
+  }
+});
 
 /* ================================================================ MEMORY PANEL + CLOCK ================================================================ */
 var _mp=new MemoryPanel(document.getElementById('mem-mount'),{
@@ -1822,6 +2092,8 @@ function updateVisualState(mem, nodesResp){
 
     // Empty path → not energized
     if (elems.length === 0) { row.classList.remove('energized'); return; }
+    // Edge [P]/[N] and CMP are not observable from /api/memory: do not draw a wrong energization
+    if (elems.some(function(x){ return x && (x.type === 'EDGE' || x.type === 'CMP'); })) { row.classList.remove('energized'); return; }
 
     // Evaluate every element in the path
     var on = elems.every(function(elem){
@@ -1887,6 +2159,318 @@ function _debugClearAll(){
   });
 }
 
+/* ================================================================
+   E3 — Ladder v4: edges [P]/[N], CMP, BLINK, AI1/SCALE/PWM, counter
+   reset/load, SR/RS priority, protected FBD<->Ladder conversion.
+   Same IR as the FBD editor (compileLadder); no second engine.
+   ================================================================ */
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+var CMP_OPS=['>','<','>=','<=','==','!='];
+var _coilPrio='S';
+var _protect=null;           // set when the saved FBD program could not be converted
+
+/* Keep uid() ahead of any 'rN' id that came from a file */
+function _syncUid(){
+  rungs.forEach(function(r){
+    var m=/^r(\d+)$/.exec(r.id||''); if(m && parseInt(m[1],10)>=_uid) _uid=parseInt(m[1],10)+1;
+  });
+}
+
+/* Replace the program with a migrated one. Returns {ok,notes}. The current
+   program is only touched when the new one is fully built (atomic). */
+function adoptProgram(data){
+  var mig=LadderAST.migrateProgram(data,uid);
+  if(!mig.rungs || mig.rungs.length===0) return {ok:false,notes:mig.notes.length?mig.notes:['The file has no rungs.']};
+  rungs=mig.rungs; _syncUid(); selRungId=null;
+  return {ok:true,notes:mig.notes,fromVersion:mig.fromVersion};
+}
+
+/* ── Helpers over the whole program ─────────────────────────── */
+function numericNames(){
+  var names=['AI1'];
+  rungs.forEach(function(r){
+    if(r.kind==='NUM') (r.chain||[]).forEach(function(b){
+      if(String(b.fn).toUpperCase()==='SCALE' && b.id && names.indexOf(b.id)<0) names.push(b.id);
+    });
+  });
+  return names;
+}
+function nextScaleId(){
+  var used={}; numericNames().forEach(function(n){ used[n]=true; });
+  for(var i=0;i<64;i++) if(!used['S'+i]) return 'S'+i;
+  return 'S0';
+}
+function _hasCoil(v,mode){
+  v=String(v||'').toUpperCase();
+  return rungs.some(function(r){ return (r.outputs||[]).some(function(c){
+    return c.type!=='PWM' && String(c.var||'').toUpperCase()===v && c.mode===mode; }); });
+}
+
+/* ── Generic parameter modal ────────────────────────────────── */
+var _prm=null;
+function openParamModal(title,fields,hint,onOk){
+  _prm={fields:fields,onOk:onOk};
+  document.getElementById('prm-title').textContent=title;
+  var h=document.getElementById('prm-hint'); h.textContent=hint||''; h.style.color='';
+  var box=document.getElementById('prm-fields'); box.innerHTML='';
+  fields.forEach(function(f){
+    var lbl=document.createElement('label'); lbl.className='modal-lbl'; lbl.textContent=f.label; box.appendChild(lbl);
+    var el;
+    if(f.type==='select'){
+      el=document.createElement('select'); el.className='modal-inp';
+      f.options.forEach(function(o){ var op=document.createElement('option'); op.value=o.value; op.textContent=o.label; el.appendChild(op); });
+    } else { el=document.createElement('input'); el.className='modal-inp'; el.type=f.type||'text'; el.autocomplete='off'; }
+    el.id='prm-'+f.key;
+    el.value=(f.value===undefined||f.value===null)?'':String(f.value);
+    box.appendChild(el);
+  });
+  document.getElementById('prm-modal').classList.add('show');
+}
+function closeParamModal(){ document.getElementById('prm-modal').classList.remove('show'); _prm=null; }
+function confirmParamModal(){
+  if(!_prm) return;
+  var vals={};
+  _prm.fields.forEach(function(f){ vals[f.key]=document.getElementById('prm-'+f.key).value; });
+  var err=_prm.onOk(vals);
+  if(err){ var h=document.getElementById('prm-hint'); h.textContent=err; h.style.color='var(--red)'; return; }
+  closeParamModal();
+}
+
+/* ── CMP element ─────────────────────────────────────────────── */
+function openCmpModal(rId,pi,ci,existing){
+  var names=numericNames();
+  if(existing && existing.src && names.indexOf(existing.src)<0) names.push(existing.src);
+  var opts=names.map(function(n){ return {value:n,label:n}; });
+  openParamModal('CMP — Comparator',[
+    {key:'src',  label:'Compare (numeric source)', type:'select', options:opts, value:existing?existing.src:names[names.length-1]},
+    {key:'op',   label:'Operator', type:'select', options:CMP_OPS.map(function(o){ return {value:o,label:o}; }), value:existing?(existing.op||'>'):'>'},
+    {key:'src2', label:'Against', type:'select', options:[{value:'',label:'constant value'}].concat(opts), value:(existing&&existing.src2)||''},
+    {key:'value',label:'Constant value (integer)', type:'number', value:(existing&&existing.value!==undefined)?existing.value:0}
+  ],'AI1 = raw ADC 0-4095.  Sn = SCALE output (define it in an analog rung).',function(v){
+    if(!v.src2 && !/^-?\d+$/.test(String(v.value).trim())) return 'The value must be an integer.';
+    var e={type:'CMP',src:v.src,op:v.op,value:parseInt(v.value,10)||0};
+    if(v.src2){ e.src2=v.src2; e.value=0; }
+    if(existing && existing.negated) e.negated=true;
+    setElem(rId,pi,ci,e);
+    setStatus('CMP '+e.src+' '+e.op+' '+(e.src2||e.value));
+  });
+}
+function mkCmpCell(rId,pi,ci,elem){
+  var div=document.createElement('div'); div.className='cell cmp';
+  div.title='CMP '+elem.src+' '+(elem.op||'>')+' '+(elem.src2||elem.value);
+  var sym=document.createElement('div'); sym.className='c-sym'; sym.textContent='CMP'+(elem.negated?' /':'');
+  var addr=document.createElement('div'); addr.className='c-addr'; addr.textContent=elem.src+' '+(elem.op||'>')+' '+(elem.src2||elem.value);
+  var typ=document.createElement('div'); typ.className='c-type'; typ.textContent='COMPARE';
+  var del=document.createElement('div'); del.className='c-del'; del.textContent='x'; del.title='Delete';
+  del.onclick=function(e){ e.stopPropagation(); delElem(rId,pi,ci); };
+  div.appendChild(sym); div.appendChild(addr); div.appendChild(typ); div.appendChild(del);
+  div.onclick=function(e){ if(e.target===del) return; openCmpModal(rId,pi,ci,elem); };
+  div.draggable=true;
+  div.ondragstart=function(e){ e.dataTransfer.setData('cell-src',JSON.stringify({rId:rId,pi:pi,ci:ci,elem:elem})); e.dataTransfer.effectAllowed='move'; };
+  return div;
+}
+
+/* ── PWM on/off coil ─────────────────────────────────────────── */
+function openPwmCoilModal(rId,existing,ci){
+  openParamModal('PWM output (on/off)',[
+    {key:'out',label:'PWM channel',type:'select',options:[1,2,3,4].map(function(n){ return {value:String(n-1),label:'PWM'+n+' (Y'+(n-1)+')'}; }),value:existing?String(existing.out):'0'}
+  ],'Rung true = 4095 (100 %), false = 0. For a variable duty use an analog rung AI1 → SCALE → PWM.',function(v){
+    var coil={type:'PWM',out:parseInt(v.out,10),mode:'NORMAL',var:''};
+    var r=getRung(rId); if(!r) return null;
+    if(ci!==null && ci!==undefined) r.outputs[ci]=coil; else r.outputs.push(coil);
+    renderAll(); updateAST(rId); setStatus('PWM'+(coil.out+1)+' coil');
+    return null;
+  });
+}
+
+/* ── Analog (NUM) rungs ─────────────────────────────────────── */
+function addNumRung(afterId){
+  var r={id:uid(),kind:'NUM',comment:'',paths:[],outputs:[],
+         chain:[{fn:'AI1'},{fn:'SCALE',id:nextScaleId(),inMin:0,inMax:4095,outMin:0,outMax:100}]};
+  var i=afterId?rungs.findIndex(function(x){return x.id===afterId;}):-1;
+  if(i>=0) rungs.splice(i+1,0,r); else rungs.push(r);
+  renderAll(); selRung(r.id); setStatus('Analog rung added (AI1 → SCALE '+r.chain[1].id+')');
+}
+function _numLines(b){
+  var fn=String(b.fn).toUpperCase();
+  if(fn==='AI1') return ['ADC 0-4095'];
+  if(fn==='SCALE') return ['in '+b.inMin+'..'+b.inMax,'out '+b.outMin+'..'+b.outMax].concat(b.src?['src '+b.src]:[]);
+  if(fn==='PWM') return ['PWM'+((b.out|0)+1)+' (Y'+(b.out|0)+')'].concat(b.src?['src '+b.src]:[]);
+  return [];
+}
+function mkNumCell(rId,bi,b){
+  var fn=String(b.fn).toUpperCase();
+  var div=document.createElement('div'); div.className='cell fn'; div.dataset.fn=fn;
+  div.title=fn+(b.id?' '+b.id:'');
+  var t=document.createElement('div'); t.className='fn-title'; t.textContent=fn+(b.id?'  '+b.id:''); div.appendChild(t);
+  _numLines(b).forEach(function(l){ var d=document.createElement('div'); d.className='fn-line'; d.textContent=l; div.appendChild(d); });
+  var del=document.createElement('div'); del.className='c-del'; del.textContent='x'; del.title='Delete';
+  del.onclick=function(e){ e.stopPropagation(); delNumBlock(rId,bi); };
+  div.appendChild(del);
+  div.onclick=function(e){ if(e.target===del) return; openNumModal(rId,bi,b); };
+  return div;
+}
+function mkNumBody(rung){
+  var body=document.createElement('div'); body.className='rung-body';
+  var row=document.createElement('div'); row.className='rung-row num-row'; row.dataset.rungId=rung.id; row.dataset.pathIdx=0;
+  var cz=document.createElement('div'); cz.className='cell-zone';
+  (rung.chain||[]).forEach(function(b,bi){
+    if(bi>0){ var ar=document.createElement('div'); ar.className='fn-arrow'; ar.textContent='→'; cz.appendChild(ar); }
+    cz.appendChild(mkNumCell(rung.id,bi,b));
+  });
+  var add=document.createElement('div'); add.className='cell empty'; add.title='Add AI1 / SCALE / PWM';
+  add.innerHTML='<div style="font-family:var(--font-mono);font-size:12px;color:var(--border2)">+</div>';
+  add.onclick=function(){ addNumBlock(rung.id); };
+  cz.appendChild(add);
+  row.appendChild(cz); body.appendChild(row);
+  return body;
+}
+function addNumBlock(rId){
+  openParamModal('Add analog block',[
+    {key:'fn',label:'Block',type:'select',options:[{value:'AI1',label:'AI1 — analog input'},{value:'SCALE',label:'SCALE — range conversion'},{value:'PWM',label:'PWM — analog output'}],value:'SCALE'}
+  ],'The block takes the previous one in the row as its input.',function(v){
+    setTimeout(function(){ openNumModal(rId,-1,{fn:v.fn}); },0);
+    return null;
+  });
+}
+function delNumBlock(rId,bi){
+  var r=getRung(rId); if(!r||!r.chain) return;
+  r.chain.splice(bi,1); renderAll(); updateAST(rId);
+}
+function _renameScale(oldId,newId){
+  if(!oldId||oldId===newId) return;
+  rungs.forEach(function(r){
+    if(r.kind==='NUM') (r.chain||[]).forEach(function(b){ if(b.src===oldId) b.src=newId; });
+    else (r.paths||[]).forEach(function(p){ (p||[]).forEach(function(e){
+      if(e&&e.type==='CMP'){ if(e.src===oldId) e.src=newId; if(e.src2===oldId) e.src2=newId; } }); });
+  });
+}
+function openNumModal(rId,bi,existing){
+  var fn=String(existing.fn).toUpperCase();
+  var r=getRung(rId); if(!r) return;
+  var isNew=(bi<0);
+  function commit(b){
+    if(isNew) r.chain.push(b); else r.chain[bi]=b;
+    renderAll(); updateAST(rId); setStatus(fn+' '+(b.id||'')+' set');
+  }
+  if(fn==='AI1'){
+    openParamModal('AI1 — analog input',[], 'Raw ADC value 0-4095 (shared by every AI1 in the program).',function(){ commit({fn:'AI1'}); return null; });
+    return;
+  }
+  var names=numericNames().filter(function(n){ return n!==existing.id; });
+  var srcOpts=[{value:'',label:'(previous block in this row)'}].concat(names.map(function(n){ return {value:n,label:n}; }));
+  if(fn==='SCALE'){
+    openParamModal('SCALE — range conversion',[
+      {key:'id',label:'Name (S0, S1...)',type:'text',value:existing.id||nextScaleId()},
+      {key:'src',label:'Input',type:'select',options:srcOpts,value:existing.src||''},
+      {key:'inMin',label:'Input min',type:'number',value:existing.inMin!==undefined?existing.inMin:0},
+      {key:'inMax',label:'Input max',type:'number',value:existing.inMax!==undefined?existing.inMax:4095},
+      {key:'outMin',label:'Output min',type:'number',value:existing.outMin!==undefined?existing.outMin:0},
+      {key:'outMax',label:'Output max',type:'number',value:existing.outMax!==undefined?existing.outMax:100}
+    ],'Integer math, truncated toward zero and clamped to the output range.',function(v){
+      var id=v.id.trim().toUpperCase();
+      if(!/^S\d+$/.test(id)) return 'The name must look like S0, S1, S2...';
+      if(numericNames().indexOf(id)>=0 && id!==existing.id) return id+' is already used by another SCALE.';
+      var nums={}; var bad=null;
+      ['inMin','inMax','outMin','outMax'].forEach(function(k){ if(!/^-?\d+$/.test(String(v[k]).trim())) bad=k; nums[k]=parseInt(v[k],10); });
+      if(bad) return bad+' must be an integer.';
+      var b={fn:'SCALE',id:id,inMin:nums.inMin,inMax:nums.inMax,outMin:nums.outMin,outMax:nums.outMax};
+      if(v.src) b.src=v.src;
+      if(existing.id) _renameScale(existing.id,id);
+      commit(b); return null;
+    });
+    return;
+  }
+  if(fn==='PWM'){
+    openParamModal('PWM — analog output',[
+      {key:'out',label:'PWM channel',type:'select',options:[1,2,3,4].map(function(n){ return {value:String(n-1),label:'PWM'+n+' (Y'+(n-1)+')'}; }),value:String(existing.out|0)},
+      {key:'src',label:'Input',type:'select',options:srcOpts,value:existing.src||''}
+    ],'Duty = the input value (0-4095 hardware scale). Use SCALE to map a range to 0-4095.',function(v){
+      var b={fn:'PWM',out:parseInt(v.out,10)}; if(v.src) b.src=v.src;
+      commit(b); return null;
+    });
+  }
+}
+
+/* ── Placing a tool on a cell (click or drop) ───────────────── */
+function placeTool(tool,rId,pi,ci){
+  var prev=selTool; selTool=tool;
+  try{
+    if(tool==='COIL')       openCoilModal(rId,null,null,'NORMAL');
+    else if(tool==='SET')   openCoilModal(rId,null,null,'SET');
+    else if(tool==='RESET') openCoilModal(rId,null,null,'RESET');
+    else if(tool==='CRST')  openCoilModal(rId,null,null,'RESET','C0');
+    else if(tool==='CLD')   openCoilModal(rId,null,null,'LOAD','C0');
+    else if(tool==='PWMC')  openPwmCoilModal(rId,null,null);
+    else if(_isBlockTool(tool)) openBlockModal(rId,pi,ci,null);
+    else if(tool==='CMP')   openCmpModal(rId,pi,ci,null);
+    else if(tool==='AI1'||tool==='SCALE'||tool==='PWM') setStatus('Analog blocks go in an analog rung (+ Analog Rung in the palette).');
+    else openContModal(rId,pi,ci,null);
+  } finally { selTool=prev; }
+}
+
+/* ── Conversion banner / protection ─────────────────────────── */
+var _TYPE_LABEL={cmp:'comparador CMP',scale:'bloque SCALE',pwm:'salida PWM',analog1:'entrada analógica AI1',blink:'bloque BLINK',
+  ton:'temporizador TON',tof:'temporizador TOF',tp:'temporizador TP',ctu:'contador CTU',ctd:'contador CTD',sr:'memoria SR',rs:'memoria RS',
+  r_trig:'detector de flanco R_TRIG',f_trig:'detector de flanco F_TRIG',and:'compuerta AND',or:'compuerta OR',not:'compuerta NOT',xor:'compuerta XOR'};
+function friendlyReason(w){
+  var m=/^Node (\d+) \((\w+)\): (.*)$/.exec(w);
+  if(/Feedback loop/.test(w)) return 'El programa tiene una realimentación (una señal vuelve a su propia condición). El orden de evaluación dentro de ese lazo no se puede garantizar al convertir. Reescribí la retención con una memoria SR/RS (entradas S y R).';
+  if(m){
+    var lbl=_TYPE_LABEL[m[2]]||m[2];
+    return 'El '+lbl+' (nodo '+m[1]+') no se puede convertir: '+m[3];
+  }
+  if(/NOT equivalent/.test(w)) return 'La verificación comparó el Ladder generado con el FBD y encontró diferencias, por eso no se aceptó la conversión.';
+  return w;
+}
+function showConvBanner(kind,title,items,buttons){
+  var b=document.getElementById('conv-banner'); if(!b) return;
+  b.className=kind==='ok'?'ok':''; b.style.display='block'; b.innerHTML='';
+  var t=document.createElement('div'); t.className='cb-ttl'; t.textContent=title; b.appendChild(t);
+  if(items && items.length){
+    var ul=document.createElement('ul'); ul.style.margin='0'; ul.style.padding='0';
+    items.slice(0,8).forEach(function(w){
+      var li=document.createElement('li'); li.textContent=friendlyReason(w);
+      if(friendlyReason(w)!==w){ var raw=document.createElement('div'); raw.className='cb-raw'; raw.textContent=w; li.appendChild(raw); }
+      ul.appendChild(li);
+    });
+    if(items.length>8){ var more=document.createElement('li'); more.textContent='… y '+(items.length-8)+' más'; ul.appendChild(more); }
+    b.appendChild(ul);
+  }
+  (buttons||[]).forEach(function(bt){
+    var x=document.createElement('button'); x.textContent=bt.label; x.onclick=bt.fn; b.appendChild(x);
+  });
+}
+function hideConvBanner(){ var b=document.getElementById('conv-banner'); if(b){ b.style.display='none'; b.innerHTML=''; } }
+
+/* IR → Ladder, verified. Returns the convertIRToLadder result. */
+function convertIR(irSrc){
+  if(typeof LadderDecompiler==='undefined') return {ok:false,reasons:['El decompilador no está cargado.']};
+  var opts={};
+  if(typeof PlcCompiler!=='undefined' && typeof IrCheck!=='undefined'){ opts.compile=PlcCompiler.compileLadder; opts.check=IrCheck; }
+  return LadderDecompiler.convertIRToLadder(irSrc,opts);
+}
+
+/* Explicit "FROM FBD": re-converts the program saved on the device. If it
+   cannot be converted the current editor content is left untouched. */
+function convertFromSaved(){
+  return loadProgram().then(function(program){
+    if(!program || !program.ir || !program.ir.program){ setStatus('No saved FBD program with an IR was found.'); showConvBanner('warn','Nada para convertir',['No hay un programa FBD guardado en el dispositivo.']); return null; }
+    var cv=convertIR(program.ir);
+    if(!cv.ok){
+      showConvBanner('warn','El programa FBD no se puede convertir a Ladder. Se conserva el programa actual del editor y el programa guardado no fue modificado.',cv.reasons);
+      csStatus('warn','FBD no convertible'); return cv;
+    }
+    var hasWork=rungs.some(function(r){ return r.kind==='NUM' || (r.outputs||[]).length || (r.paths||[]).some(function(p){ return p.length>1; }); });
+    if(hasWork && !confirm('Reemplazar los renglones actuales por el FBD convertido?')) return cv;
+    rungs=cv.rungs.map(function(r){ return LadderAST.migrateRung(r,uid); }); _syncUid(); selRungId=null; _protect=null;
+    renderAll();
+    showConvBanner('ok','Conversión FBD → Ladder correcta'+(cv.verified?' y verificada':' (sin verificar)'),cv.warnings);
+    csStatus('ok','FBD convertido: '+rungs.length+' renglón(es)');
+    return cv;
+  });
+}
+
 /* ================================================================ INIT ================================================================ */
 
 /* ── createDefaultRung is defined near mkRung above ─────────── */
@@ -1897,112 +2481,51 @@ function _debugClearAll(){
  *  Never throws — always falls back to a valid default rung.    */
 function initLadder(program){
   try {
-    var rawRungs = null;
+    var rawProgram = null;
 
-    // ── Shape 1: v3 Ladder envelope { source:'ladder', ladder:{rungs:[...]} }
-    if (program && program.source === 'ladder' && program.ladder && Array.isArray(program.ladder.rungs)) {
-      rawRungs = program.ladder.rungs;
-      console.info('[Ladder] Restored from v3 Ladder envelope');
+    // ── Ladder shapes (all versions): envelope, bare rungs object, raw array
+    if (program && program.source === 'ladder' && program.ladder && Array.isArray(program.ladder.rungs)) rawProgram = program;
+    else if (program && program.ladder && Array.isArray(program.ladder.rungs)) rawProgram = program;
+    else if (program && Array.isArray(program.rungs)) rawProgram = program;
+    else if (Array.isArray(program)) rawProgram = program;
 
-    // ── Shape 2: Ladder envelope without source field { ladder:{rungs:[...]} }
-    } else if (program && program.ladder && Array.isArray(program.ladder.rungs)) {
-      rawRungs = program.ladder.rungs;
-
-    // ── Shape 3: bare rungs array { rungs:[...] }
-    } else if (program && Array.isArray(program.rungs)) {
-      rawRungs = program.rungs;
-
-    // ── Shape 4: raw array
-    } else if (Array.isArray(program)) {
-      rawRungs = program;
-
-    // ── Shape 5 (A3 FIX): FBD envelope or any envelope with ir field
-    // program.fbd  → FBD envelope (version:2, source undefined)
-    // program.ir   → any envelope that has a compiled IR
-    // Strategy: run analyzeIR → if convertible → decompileIRToLadder
-    //           if not convertible → warn + default rung
-    } else if (program && program.ir && program.ir.program && program.ir.program.nodes) {
-      var irSrc = program.ir;
-      var srcLabel = (program.source === 'fbd' || program.fbd) ? 'FBD' : 'IR';
-      console.info('[Ladder] Detected ' + srcLabel + ' envelope — attempting IR→Ladder decompilation');
-
-      if (typeof LadderDecompiler === 'undefined') {
-        // Decompiler not loaded — should not happen after A1/A2 fix, but guard anyway
-        console.error('[Ladder] LadderDecompiler not available — cannot decompile ' + srcLabel);
-        csStatus('warn', srcLabel + ' loaded — Ladder view unavailable (decompiler missing)');
-        setStatus('Open a Ladder program to edit, or compile from scratch.');
-        rungs = [ createDefaultRung() ];
+    if (rawProgram) {
+      var res = adoptProgram(rawProgram);
+      if (res.ok) {
+        _protect = null; hideConvBanner();
         renderAll();
-        return;
-      }
-
-      // Step 1: analyze convertibility
-      var analysis = LadderDecompiler.analyzeIR(irSrc);
-      console.info('[Ladder] analyzeIR result:', analysis);
-
-      if (!analysis.convertible) {
-        // Level 3 — non-convertible nodes present (PWM, SCALE, ANALOG, cycles)
-        var warnMsg = srcLabel + ' program is not convertible to Ladder (level 3).';
-        console.warn('[Ladder] ' + warnMsg, analysis.warnings);
-        csStatus('warn', srcLabel + ' program — not convertible to Ladder');
-        setStatus(warnMsg + ' See console for details.');
-        // Show warnings in AST preview panel
-        var astEl = document.getElementById('ast-preview');
-        if (astEl) {
-          astEl.innerHTML = '<span style="color:var(--yellow)">⚠ ' + srcLabel + ' not convertible</span><br>' +
-            analysis.warnings.slice(0,4).map(function(w){
-              return '<span style="color:var(--text-dim);font-size:7px">' + w + '</span>';
-            }).join('<br>');
-        }
-        rungs = [ createDefaultRung() ];
-        renderAll();
-        return;
-      }
-
-      // Step 2: decompile IR → rungs en formato paths (directo para el editor)
-      // decompileIRToLadder retorna { rungs:[...paths format...], analysis }
-      // o null si la conversión falla internamente.
-      var decompResult = LadderDecompiler.decompileIRToLadder(irSrc);
-      console.info('[Ladder] decompileIRToLadder result:', decompResult);
-
-      if (!decompResult || !Array.isArray(decompResult.rungs) || decompResult.rungs.length === 0) {
-        console.warn('[Ladder] Decompiler returned empty result');
-        csStatus('warn', srcLabel + ' decompiled — no rungs generated');
-        setStatus('Decompilation produced no rungs. Starting blank.');
-        rungs = [ createDefaultRung() ];
-        renderAll();
-        return;
-      }
-
-      // Step 3: cargar rungs en el editor (ya están en paths format)
-      rawRungs = decompResult.rungs;
-
-      if (rawRungs.length > 0) {
-        rungs = rawRungs;
-        renderAll();
-        var lvlMsg = analysis.level === 2 ? ' (some nodes approximated)' : '';
-        csStatus('ok', srcLabel + ' decompiled — ' + rungs.length + ' rung(s)' + lvlMsg);
-        setStatus(srcLabel + ' program decompiled to Ladder — ' + rungs.length + ' rung(s)' + lvlMsg);
-        if (analysis.warnings.length > 0) {
-          console.warn('[Ladder] Decompiler warnings:', analysis.warnings);
-        }
+        setStatus('Program loaded — ' + rungs.length + ' rung(s)' + (res.notes.length ? ' — ' + res.notes.join(' ') : ''));
+        csStatus(res.notes.length ? 'warn' : 'ok', rungs.length + ' rung(s) loaded');
         return;
       }
     }
 
-    // ── Common path: rawRungs found via shapes 1-4
-    if (rawRungs && rawRungs.length > 0) {
-      rungs = rawRungs.map(function(r){
-        var m = LadderAST.legacyToPaths(r);
-        if (!m.id)      m.id      = uid();
-        if (!m.comment) m.comment = '';
-        if (!Array.isArray(m.paths))   m.paths   = [[]];
-        if (!Array.isArray(m.outputs)) m.outputs = [];
-        return m;
-      });
+    // ── FBD envelope (or any envelope with a compiled IR) ──────────────
+    else if (program && program.ir && program.ir.program && program.ir.program.nodes) {
+      var srcLabel = (program.source === 'fbd' || program.fbd) ? 'FBD' : 'IR';
+      var cv = convertIR(program.ir);
+
+      if (!cv.ok) {
+        // Conversion refused: the saved program is NOT touched. The editor opens with an empty
+        // rung and COMPILE stays blocked so the saved program cannot be overwritten by accident.
+        _protect = { label: srcLabel, reasons: cv.reasons };
+        rungs = [ createDefaultRung() ];
+        renderAll();
+        csStatus('warn', srcLabel + ' no convertible a Ladder — COMPILE bloqueado');
+        setStatus('El programa ' + srcLabel + ' guardado se conserva sin cambios.');
+        showConvBanner('warn',
+          'Este programa ' + srcLabel + ' no se puede convertir a Ladder. El programa guardado NO fue modificado y la compilación desde este editor está bloqueada.',
+          cv.reasons,
+          [{ label: 'Empezar un Ladder nuevo (reemplazará el programa guardado al compilar)', fn: function(){ _protect = null; hideConvBanner(); csStatus('ok','Ready'); setStatus('Ladder nuevo'); } }]);
+        return;
+      }
+
+      rungs = cv.rungs.map(function(r){ return LadderAST.migrateRung(r, uid); });
+      _syncUid(); _protect = null;
       renderAll();
-      setStatus('Program loaded — ' + rungs.length + ' rung(s)');
-      csStatus('ok', rungs.length + ' rung(s) loaded');
+      csStatus('ok', srcLabel + ' convertido — ' + rungs.length + ' renglón(es)');
+      setStatus(srcLabel + ' convertido a Ladder' + (cv.verified ? ' (equivalencia verificada)' : ' (sin verificar)') + ' — ' + rungs.length + ' renglón(es)');
+      showConvBanner('ok', 'Conversión ' + srcLabel + ' → Ladder correcta' + (cv.verified ? ' y verificada contra el programa original' : ''), cv.warnings || []);
       return;
     }
   } catch(e) {
@@ -2014,6 +2537,16 @@ function initLadder(program){
   console.warn('No ladder program found — starting with default rung');
   rungs = [ createDefaultRung() ];
   renderAll();
+  var nonEmpty = program && typeof program === 'object' && Object.keys(program).length > 0;
+  if (nonEmpty) {
+    // Hay un programa guardado que no es Ladder ni se pudo convertir: no se pisa.
+    _protect = { label: 'guardado', reasons: ['El programa guardado tiene un formato que este editor no reconoce (' + (program.format || program.source || 'sin formato') + ').'] };
+    showConvBanner('warn', 'El programa guardado no se pudo abrir. NO fue modificado y la compilación desde este editor está bloqueada.', _protect.reasons,
+      [{ label: 'Empezar un Ladder nuevo (reemplazará el programa guardado al compilar)', fn: function(){ _protect = null; hideConvBanner(); csStatus('ok','Ready'); setStatus('Ladder nuevo'); } }]);
+    csStatus('warn', 'Programa guardado no reconocido — COMPILE bloqueado');
+    setStatus('El programa guardado se conserva sin cambios.');
+    return;
+  }
   setStatus('New program — default rung created');
   csStatus('ok', 'Ready');
 }
@@ -2117,6 +2650,7 @@ function _ladderASTRungToPaths(astRung) {
 
 /* ── Load saved program from ESP32 /load endpoint ────────────── *
  *  Returns the parsed JSON or null on any failure.              */
+var _loadCorrupt = null;   // texto si /load devolvió un programa guardado ilegible
 function loadProgram(){
   return fetch('/load')
     .then(function(r){
@@ -2132,6 +2666,7 @@ function loadProgram(){
       try {
         parsed = JSON.parse(raw);
       } catch(e) {
+        _loadCorrupt = 'El programa guardado en el dispositivo no se puede leer (JSON dañado: ' + e.message + ').';
         console.error('[Ladder] Invalid JSON from /load:', e.message);
         console.error('[Ladder] Raw (first 200):', raw.substring(0, 200));
         return null;
@@ -2159,6 +2694,19 @@ refreshBadge();
   //    sessionStorage draft is only used when /load has nothing.
   csStatus('warn', 'Loading program...');
   loadProgram().then(function(program) {
+    _startupFlow(program);
+    // Si hay algo guardado que el editor no pudo leer, COMPILE queda bloqueado: no se pisa lo persistido en el PLC.
+    if (_loadCorrupt && !_protect) {
+      _protect = { label: 'guardado', reasons: [_loadCorrupt] };
+      showConvBanner('warn', 'El programa guardado no se pudo abrir. NO fue modificado y la compilación desde este editor está bloqueada.', _protect.reasons,
+        [{ label: 'Empezar un Ladder nuevo (reemplazará el programa guardado al compilar)', fn: function(){ _protect = null; hideConvBanner(); csStatus('ok','Ready'); setStatus('Ladder nuevo'); } }]);
+      csStatus('warn', 'Programa guardado ilegible — COMPILE bloqueado');
+    }
+  });
+})();
+
+function _startupFlow(program) {
+  {
     var isEmpty = !program ||
       (typeof program === 'object' && Object.keys(program).length === 0);
 
@@ -2183,15 +2731,7 @@ refreshBadge();
       if (d) {
         var parsed = JSON.parse(d);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          rungs = parsed.map(function(r) {
-            var m = LadderAST.legacyToPaths(r);
-            if (!m.id)      m.id      = uid();
-            if (!m.comment) m.comment = '';
-            if (!Array.isArray(m.paths))   m.paths   = [[]];
-            if (!Array.isArray(m.outputs)) m.outputs = [];
-            return m;
-          });
-          hasDraft = true;
+          hasDraft = adoptProgram(parsed).ok;
         }
       }
     } catch(e) { console.warn('Draft parse error:', e); }
@@ -2209,8 +2749,8 @@ refreshBadge();
     } else {
       initLadder(program);  // unknown format, let initLadder try all shapes
     }
-  });
-})();
+  }
+}
 </script>
 <div class="license-footer">PLC-CORE-MDE &copy; 2026 Martín Entraigas – MDE Electrónica&nbsp;&nbsp;Uso no comercial únicamente.&nbsp;&nbsp;<a href="LICENSE.txt" target="_blank">Ver licencia completa</a></div>
 <style>

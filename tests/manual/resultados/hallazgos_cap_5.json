@@ -1,0 +1,51 @@
+[
+ {
+  "id": "5.1",
+  "title": "CTU lote 20 + alarma + BLINK",
+  "status": "OK",
+  "expected": [],
+  "obtained": [],
+  "note": "",
+  "ladder": "ok"
+ },
+ {
+  "id": "5.2",
+  "title": "Dos CTU lote 10/20",
+  "status": "OK",
+  "expected": [],
+  "obtained": [],
+  "note": "El FBD usa \"OUT1\" para el aviso y también \"OUT1_gate\" para el motor: el motor necesita otra salida (aquí OUT3). Aclarar en el texto."
+ },
+ {
+  "id": "5.3",
+  "title": "Stock con CTU PV=40",
+  "status": "OK",
+  "expected": [],
+  "obtained": [],
+  "note": ""
+ },
+ {
+  "id": "5.3-ctd",
+  "title": "CTD real",
+  "status": "ADVERTENCIA",
+  "expected": [],
+  "obtained": [],
+  "note": "Al encender, CV=0 y Q=1 hasta que se aplique LD: la alarma \"sin stock\" está activa en el arranque. El manual no lo menciona."
+ },
+ {
+  "id": "5.4",
+  "title": "Lote con cinta (PV=10)",
+  "status": "OK",
+  "expected": [],
+  "obtained": [],
+  "note": ""
+ },
+ {
+  "id": "5.5",
+  "title": "Cascada de CTU con auto-reset",
+  "status": "OK",
+  "expected": [],
+  "obtained": [],
+  "note": "Funciona en FW y SIM (CTU_1 lee su Q del scan anterior). El pulso dura 1 scan. El FBD del manual cablea Q->R sin OR con IN2; para que IN2 resetee ambos hace falta un OR (R de CTU_1 admite una sola entrada por puerto)."
+ }
+]

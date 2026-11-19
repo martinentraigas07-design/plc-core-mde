@@ -1,0 +1,116 @@
+[
+ {
+  "id": "7.1",
+  "title": "Motor con contactor",
+  "status": "DEFECTO_MANUAL",
+  "expected": [
+   "001",
+   "001",
+   "001",
+   "001",
+   "110",
+   "001",
+   "001",
+   "001",
+   "001",
+   "110",
+   "001",
+   "001"
+  ],
+  "obtained": [
+   "001",
+   "001",
+   "001",
+   "001",
+   "001",
+   "001",
+   "001",
+   "001",
+   "001",
+   "001",
+   "001",
+   "001"
+  ],
+  "note": "Mismo defecto de 2.1: IN2 (paro NC) conectado directo a R. Corregir con RS (R=NOT IN2). El Ladder del ejemplo sí es correcto (IN2 en serie con SET y [/IN2] en RESET).",
+  "ladder": "ok"
+ },
+ {
+  "id": "7.2",
+  "title": "Estrella-triángulo",
+  "status": "DEFECTO_MANUAL",
+  "expected": [
+   "000",
+   "110",
+   "110",
+   "110",
+   "101",
+   "000"
+  ],
+  "obtained": [
+   "010",
+   "110",
+   "110",
+   "110",
+   "101",
+   "010"
+  ],
+  "note": "(1) OUT2=NOT(Q_TON) deja K2 energizado con el motor parado (la tabla dice 0); falta AND con Q del SR. El Ladder rung 6 [/M2] tiene el mismo defecto. (2) K2 cae y K3 sube en el mismo scan: añadir ≈100 ms de tiempo muerto (TON sobre Q_TON) y aclarar que solo el enclavamiento cableado garantiza la exclusión. (3) IN2 NC: mismo NOT/RS de 2.1."
+ },
+ {
+  "id": "7.3",
+  "title": "Semáforo peatonal",
+  "status": "DEFECTO_MANUAL",
+  "expected": [],
+  "obtained": [
+   "1000",
+   "1000",
+   "1000",
+   "1000"
+  ],
+  "note": "El TON de 3 s se alimenta directo de IN1: el verde peatonal solo sale si el pulsador se mantiene 3 s. Un pulsador momentáneo (lo normal) deja a los autos en rojo 20 s sin verde para el peatón. Corregir: TON(3000) alimentado por Q del TP (retardo desde que empieza el rojo) y OUT3 = TON AND Q_TP para cortar al finalizar los 20 s. Con la versión del manual el verde peatonal se apaga al soltar IN1, no a los 20 s de la tabla."
+ },
+ {
+  "id": "7.4",
+  "title": "Alarma multizona",
+  "status": "DEFECTO_MANUAL",
+  "expected": [],
+  "obtained": [
+   "1000",
+   "0000",
+   "1000"
+  ],
+  "note": "El reset AND(IN1,IN2) usa las mismas entradas que los sensores: con SR (set dominante, como el FBD) el reset nunca actúa; con RS el reset aparece cuando ambas zonas disparan a la vez (se pierde la alarma). El Ladder del manual (SET y RESET sobre la misma bobina) se compila en este proyecto como latch con SET dominante, igual que el SR del FBD. Recomendación: no resolverlo con 2 entradas; usar RDI/IN2 dedicado de reset (ver Cap. 9) o mostrar explícitamente la limitación."
+ },
+ {
+  "id": "7.5",
+  "title": "Ventilación 3 velocidades",
+  "status": "ADVERTENCIA",
+  "expected": [
+   "000",
+   "000",
+   "100",
+   "110",
+   "111",
+   "111",
+   "110",
+   "110",
+   "100",
+   "100",
+   "000"
+  ],
+  "obtained": [
+   "000",
+   "000",
+   "100",
+   "110",
+   "111",
+   "111",
+   "110",
+   "110",
+   "100",
+   "100",
+   "000"
+  ],
+  "note": "La tabla del manual dice \"55–50 °C (bajando): 1 1 0\", pero la histéresis apaga la alta recién por debajo de 50 °C; entre 55 y 50 la alta sigue ON (1 1 1). Ejecutado: 52 °C → 111, 48 °C → 110. Corregir la fila de la tabla."
+ }
+]

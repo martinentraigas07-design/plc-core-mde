@@ -1,0 +1,43 @@
+[
+ {
+  "id": "5-regla",
+  "title": "Regla \"siempre R_TRIG antes del CTU\"",
+  "status": "DEFECTO_MANUAL",
+  "expected": [],
+  "obtained": [
+   "0000",
+   "0000",
+   "1000"
+  ],
+  "note": "El recuadro del Cap. 5 (\"CTU cuenta 5, incorrecto\") y la fila de 11.4 (\"Contador cuenta varias veces por cada pulso → falta R_TRIG\") son falsos para este firmware y simulador: CTU/CTD cuentan solo en flanco ascendente de CU/CD. El R_TRIG es inofensivo pero redundante. Corregir el texto. (Ver nota equivalente ya corregida en firmware/MANUAL_PROGRAMACION.md.)"
+ },
+ {
+  "id": "11.4-toggle",
+  "title": "Toggle sin R_TRIG",
+  "status": "ADVERTENCIA",
+  "expected": [],
+  "obtained": [
+   "1000",
+   "0000",
+   "1000",
+   "0000"
+  ],
+  "note": "Confirmado que oscila en cada scan; el manual dice \"100 Hz\": con scan de 10 ms la salida cambia 50 veces por segundo (ciclo completo 20 ms = 50 Hz)."
+ },
+ {
+  "id": "11.4-pt",
+  "title": "TON con PT 0/vacío",
+  "status": "OK",
+  "expected": [],
+  "obtained": [],
+  "note": "Confirmado: activa de inmediato."
+ },
+ {
+  "id": "11.4-pwm",
+  "title": "PWM + digital en el mismo OUT",
+  "status": "OK",
+  "expected": [],
+  "obtained": [],
+  "note": "plc_io.cpp (lectura de código, NO ejecutado en host): plcWriteOutput ignora el pin bajo PWM; verificar en el ESP32. El simulador refleja también el bit digital del mismo canal (diferencia cosmética conocida que no afecta al PWM)."
+ }
+]

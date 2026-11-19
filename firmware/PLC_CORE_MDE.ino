@@ -329,8 +329,9 @@ void setup()
     server.on("/load", HTTP_GET, []() {
         File f = SPIFFS.open("/program.json", "r");
         if (!f) { server.send(200, "application/json", "{}"); return; }
-        String s = f.readString(); f.close();
-        server.send(200, "application/json", s);
+        // streamFile no copia el programa a RAM (un envelope grande llega a ~77 KB)
+        server.streamFile(f, "application/json");
+        f.close();
     });
 
     server.on("/modbus/status", HTTP_GET, []() {

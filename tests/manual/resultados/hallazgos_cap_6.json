@@ -1,0 +1,42 @@
+[
+ {
+  "id": "6.1",
+  "title": "AI1->SCALE->PWM",
+  "status": "OK",
+  "expected": [],
+  "obtained": [],
+  "note": "El campo \"OUT\" del PWM en el editor muestra 1..4 (valor interno 0..3): coincide con \"OUT=1\" del manual."
+ },
+ {
+  "id": "6.2",
+  "title": "Histéresis temperatura",
+  "status": "OK",
+  "expected": [],
+  "obtained": [],
+  "note": "SCALE trunca hacia cero: 26,0 °C (ADC 2129) se lee 25 y no supera CMP>25 hasta ~26,0 °C reales (umbrales efectivos = valor entero siguiente). Los ejemplos con SCALE entero tienen ese sesgo de hasta 1 unidad. ADC 1474 (=18,0°C ideal) se escala a 17 °C por truncamiento: CMP<18 da 1. El valor \"1474\" que da el manual coincide con el umbral solo si no se usa SCALE."
+ },
+ {
+  "id": "6.3",
+  "title": "Nivel tanque",
+  "status": "OK",
+  "expected": [],
+  "obtained": [],
+  "note": "La tabla de estados del manual se cumple tal cual en FW y SIM. Con SCALE entero los umbrales efectivos se corren hasta 1 % (ver 6.2)."
+ },
+ {
+  "id": "6.4",
+  "title": "Comparador doble",
+  "status": "DEFECTO_MANUAL",
+  "expected": [],
+  "obtained": [],
+  "note": "La tabla solo se cumple porque los pesos de prueba eran 1,5/2,0/3,5/5,0/6,2. SCALE trunca a entero: con outMax=10 la resolución es 1 kg, así que 5,5 y 5,99 kg pasan como BUENA. Corregir: SCALE a 0-100 (décimas de kg) y CMP<20 / CMP>50."
+ },
+ {
+  "id": "6.5",
+  "title": "Dos SR independientes",
+  "status": "OK",
+  "expected": [],
+  "obtained": [],
+  "note": "Ejecutado con S=CMP<60, R=CMP>65 (calefactor) y S=CMP>80, R=CMP<75 (ventilador), como describe el texto; se cumple la zona neutra."
+ }
+]

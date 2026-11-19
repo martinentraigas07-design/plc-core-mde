@@ -1,0 +1,123 @@
+[
+ {
+  "id": "4.1",
+  "title": "TON 5 s con paro NC",
+  "status": "OK",
+  "expected": [
+   "0000",
+   "0000",
+   "0000",
+   "0000",
+   "1000",
+   "0000",
+   "0000",
+   "0000",
+   "0000",
+   "0000",
+   "0000"
+  ],
+  "obtained": [
+   "0000",
+   "0000",
+   "0000",
+   "0000",
+   "1000",
+   "0000",
+   "0000",
+   "0000",
+   "0000",
+   "0000",
+   "0000"
+  ],
+  "ladder": "ok"
+ },
+ {
+  "id": "4.2",
+  "title": "TOF 30 s (motor inmediato, ventilador +30 s)",
+  "status": "OK",
+  "expected": [
+   "0000",
+   "1100",
+   "1100",
+   "1000",
+   "1000",
+   "1000",
+   "0000"
+  ],
+  "obtained": [
+   "0000",
+   "1100",
+   "1100",
+   "1000",
+   "1000",
+   "1000",
+   "0000"
+  ]
+ },
+ {
+  "id": "4.3",
+  "title": "TP 15 s + TON 3 s peatón",
+  "status": "OK",
+  "expected": [],
+  "obtained": [
+   "0100",
+   "1000",
+   "1000",
+   "1000",
+   "1000",
+   "1010",
+   "0110",
+   "0110",
+   "0100"
+  ],
+  "ladder": "ok"
+ },
+ {
+  "id": "4.4",
+  "title": "BLINK",
+  "status": "OK",
+  "expected": [],
+  "obtained": [],
+  "note": "El manual dice que BLINK es Level 2 en Ladder; el decompilador del repo lo clasifica como nivel 3 (rechazado, no mal traducido). Texto del manual a ajustar."
+ },
+ {
+  "id": "4.6",
+  "title": "Alarma por tiempo (TON de seguridad)",
+  "status": "DEFECTO_MANUAL",
+  "expected": [],
+  "obtained": [
+   "10",
+   "10",
+   "11",
+   "11",
+   "11"
+  ],
+  "note": "El FBD usa SR (set dominante) con S=IN1 (nivel bajo, señal sostenida) y R=IN2: mientras el nivel siga bajo el operario no puede resetear con IN2. Usar RS (reset dominante) como pide el propio Cap. 8. El Ladder del ejemplo pone IN2 como NC en SET/RESET (distinto del FBD: IN2 NA como R)."
+ },
+ {
+  "id": "4.5",
+  "title": "Retardo arranque 3 s / paro 5 s",
+  "status": "OK",
+  "expected": [
+   "0000",
+   "0000",
+   "0000",
+   "0000",
+   "1000",
+   "1000",
+   "1000",
+   "0000"
+  ],
+  "obtained": [
+   "0000",
+   "0000",
+   "0000",
+   "0000",
+   "1000",
+   "1000",
+   "1000",
+   "0000"
+  ],
+  "ladder": "ok"
+ }
+]

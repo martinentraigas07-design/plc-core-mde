@@ -17,12 +17,33 @@
 #define MAX_LINKS 8
 
 // ============================================================
+// Tipos de nodo (se resuelven UNA vez en parseProgram, no en el scan)
+// ============================================================
+enum NodeType
+{
+    NT_UNKNOWN = 0,
+    NT_INPUT,    // input1, input2
+    NT_ANALOG,   // analog1
+    NT_OUTPUT,   // output1..output4
+    NT_AND, NT_OR, NT_NOT, NT_XOR, NT_CMP,
+    NT_TON, NT_TOF, NT_TP, NT_BLINK,
+    NT_CTU, NT_CTD,
+    NT_SR, NT_RS,
+    NT_RTRIG, NT_FTRIG,
+    NT_SCALE, NT_PWM,
+    NT_PREV      // SR(S=X, R=NOT X) generado por compiladores antiguos:
+                 // registro de 1 scan (Q = X del scan anterior)
+};
+
+// ============================================================
 // PlcNode — nodo del runtime IEC 61131-3
 // ============================================================
 struct PlcNode
 {
     int    id;        // ID drawflow (arbitrario)
     String name;      // tipo de nodo: "input1","ton","and", etc.
+    int    type;      // NodeType (derivado de name en parseProgram)
+    int    phys;      // índice físico de entrada/salida/analógica (-1 si no aplica)
 
     // --- Valores de señal ---
     bool   state;     // salida booleana (BOOL)
@@ -87,6 +108,11 @@ extern SemaphoreHandle_t plcMutex;
 
 extern PlcNode nodes[MAX_NODES];
 extern int nodeCount;
+
+// Orden de ejecución determinista calculado en parseProgram()
+// (ver plc_runtime.cpp: plcBuildExecOrder)
+extern int execOrder[MAX_NODES];
+extern int execCount;
 
 void parseProgram(String json);
 void plcScan();

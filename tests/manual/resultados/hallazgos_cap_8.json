@@ -1,0 +1,92 @@
+[
+ {
+  "id": "8.1",
+  "title": "Cadena NC con reset supervisado",
+  "status": "DEFECTO_MANUAL",
+  "expected": [
+   "0",
+   "1",
+   "1",
+   "0",
+   "0",
+   "0",
+   "1"
+  ],
+  "obtained": [
+   "0",
+   "0",
+   "1",
+   "1",
+   "1",
+   "1",
+   "0"
+  ],
+  "note": "(1) El texto presenta primero RS(S=IN1,R=IN2) y lo retracta; debe eliminarse. (2) La fila \"IN1=1,IN2=1 → Q=0\" contradice la fila 2; con la lógica correcta Q=1. (3) Por cablear INICIO NA en serie en la cadena de IN1, la prensa se detiene al soltar INICIO. Usar IN1 = cadena NC, IN2 = INICIO/rearme con R_TRIG. (4) Debe incluir un cartel: esta lógica NO es una función de seguridad validada (ver 8.5)."
+ },
+ {
+  "id": "8.2",
+  "title": "Cintas enclavadas",
+  "status": "DEFECTO_MANUAL",
+  "expected": [],
+  "obtained": [
+   "00",
+   "11",
+   "11",
+   "11",
+   "01",
+   "01",
+   "00"
+  ],
+  "note": "El FBD y el Ladder usan IN3/IN4 y \"OUT2b\", que no existen (2 entradas, 4 salidas); el compilador rechaza X2. El Ladder rung 3 usa [IN1] aunque el texto dice IN3. El enclavamiento C1→C2 con TOF sí funciona (verificado con adaptación a 2 entradas). La referencia a RS-485 no es ejecutable: el editor no tiene nodos RDI/RDO (ver Cap. 9)."
+ },
+ {
+  "id": "8.3",
+  "title": "Timeout de seguridad",
+  "status": "DEFECTO_MANUAL",
+  "expected": [],
+  "obtained": [
+   "00",
+   "10",
+   "10",
+   "10",
+   "10",
+   "11",
+   "11",
+   "11",
+   "11"
+  ],
+  "note": "(1) El RS tiene un solo puerto R: dibujar IN2 y Q_TON al mismo R pierde uno de los cables (el firmware, el simulador y el compilador lo descartan con aviso). Hace falta un OR. (2) Al cerrarse la válvula el TON se reinicia y la alarma dura 1 scan; para que \"alarma=1\" de la tabla se cumpla hay que enclavarla con un SR (reset con IN1). (3) El Ladder del manual es correcto en lo conceptual (rung 3 R por M1) pero la alarma también se apaga porque M1 cae."
+ },
+ {
+  "id": "8.4",
+  "title": "Doble reset con confirmación",
+  "status": "DEFECTO_MANUAL",
+  "expected": [],
+  "obtained": [
+   "1",
+   "1",
+   "1",
+   "1",
+   "1",
+   "1",
+   "1",
+   "1"
+  ],
+  "note": "El propio manual advierte que IN1 es sensor y botón; con SR (set dominante) el reset jamás actúa mientras IN1=1, y con RS la alarma se rearma al soltar. Con 2 entradas el ejemplo no es ejecutable tal como se describe: necesita un sensor independiente (RDI1, Cap. 9, no soportado por el editor) o liberar una entrada."
+ },
+ {
+  "id": "8.5",
+  "title": "Prensa \"categoría 1\"",
+  "status": "DEFECTO_MANUAL",
+  "expected": [],
+  "obtained": [
+   "000",
+   "010",
+   "010",
+   "101",
+   "101",
+   "000"
+  ],
+  "note": "La lógica ejecuta el arranque con retardo, la lámpara amarilla y el contador de ciclos. Pero (1) hereda el defecto de 8.1 (INICIO en serie en IN1); (2) IN2 es a la vez habilitación de arranque (S=IN1·IN2) y R del CTU: mientras se arranca (IN2=1) el contador está en reset, por lo que la alarma de mantenimiento no puede alcanzarse en uso normal (verificado: 5 arranques → OUT4=0); separar el reset del contador de IN2; (3) un PLC educativo con salidas por relé/transistor sin diagnóstico NO cumple \"categoría 1\" de ISO 13849-1 ni es un circuito de seguridad validado: el título y el texto deben presentarlo como ejemplo didáctico de lógica de parada, nunca como función de seguridad. La emergencia real debe cortar la potencia del contactor por hardware (cadena cableada) independientemente del PLC."
+ }
+]

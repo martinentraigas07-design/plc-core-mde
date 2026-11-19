@@ -219,6 +219,7 @@ body { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
   <div class="topbar-title">Monitor PRO</div>
   <div class="topbar-spacer"></div>
   <div id="mode-badge" class="mode-badge stop">STOP</div>
+  <div id="wifi-badge" class="mode-badge run" title="Estado WiFi — clic para alternar" style="cursor:pointer">&#x25C9; WIFI</div>
   <div class="topbar-sep"></div>
   <button class="ctrl-btn run"  onclick="PlcApi.plcRun().then(pollNow)">&#x25BA; RUN</button>
   <button class="ctrl-btn stop" onclick="PlcApi.plcStop().then(pollNow)">&#x25A0; STOP</button>
@@ -548,6 +549,21 @@ function setReg(prefix, idx, active, val, maxVal, unit) {
   if (vEl) vEl.textContent = val + (unit || '');
 }
 
+/* ── WiFi badge (equivalente al de la interfaz embebida anterior): GET /wifi/toggle alterna el AP ── */
+function updateWifiBadge(on) {
+  var badge = document.getElementById('wifi-badge');
+  if (!badge) return;
+  badge.textContent = on ? '\u25C9 WIFI' : '\u25CB WIFI OFF';
+  badge.className = 'mode-badge ' + (on ? 'run' : 'stop');
+  badge.title = on ? 'WiFi activo — clic para apagar (se pierde la conexión con el PLC)' : 'WiFi apagado — clic para encender';
+}
+document.addEventListener('DOMContentLoaded', function() {
+  var wb = document.getElementById('wifi-badge');
+  if (wb) wb.addEventListener('click', function() {
+    fetch('/wifi/toggle').then(function(r){ return r.json(); }).then(function(d){ updateWifiBadge(d.wifi); }).catch(function(){});
+  });
+});
+
 /* ── Main poll function ──────────────────────────────────── */
 function pollNow() {
   pollCount++;
@@ -631,6 +647,7 @@ function pollNow() {
     var sb = document.getElementById('sb-mode');
     sb.className = 'stat-box ' + (mode === 'RUN' ? 'ok' : 'warn');
     document.getElementById('sv-nodes').textContent = d.nodes || 0;
+    if (d.wifi !== undefined) updateWifiBadge(d.wifi);
   }).catch(function(){});
 
   // ── 3. Nodes ───────────────────────────────────────────── //

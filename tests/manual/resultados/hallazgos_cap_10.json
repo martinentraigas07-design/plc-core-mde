@@ -1,0 +1,96 @@
+[
+ {
+  "id": "10.1",
+  "title": "Tanque de agua",
+  "status": "ADVERTENCIA",
+  "expected": [
+   "000",
+   "100",
+   "110",
+   "110",
+   "010",
+   "000",
+   "100"
+  ],
+  "obtained": [
+   "000",
+   "100",
+   "110",
+   "110",
+   "010",
+   "000",
+   "100"
+  ],
+  "note": "La lógica de bomba, ventilador y timeout se cumple. Observaciones: la fila \"nivel medio → bomba 0\" solo aplica al arranque (RS retiene); el umbral \"3276 ADC\" del paso 75 no activa CMP>40 por el truncamiento de SCALE (hace falta ≈3358). El TON de 600 000 ms cuenta mientras la bomba está ON aunque el nivel suba; la alarma se apaga cuando la bomba para (no queda enclavada)."
+ },
+ {
+  "id": "10.2",
+  "title": "Línea de producción",
+  "status": "ADVERTENCIA",
+  "expected": [],
+  "obtained": [
+   "0",
+   "0",
+   "0",
+   "0",
+   "0",
+   "0",
+   "0",
+   "0",
+   "0",
+   "1"
+  ],
+  "note": "Funciona: 19→20 piezas, parada de cinta, sirena, parpadeo y fin de turno a los 10 lotes. No hay reset del contador de lotes (OUT4 queda enclavado hasta reiniciar el PLC). El ejemplo asigna IN2 a \"reset lote\"; el texto inicial (SR de arranque manual con IN1/IN2 largos) no se usa y debe quitarse. R_TRIG antes de CTU_LOTES es redundante (el CTU ya cuenta flancos)."
+ },
+ {
+  "id": "10.3",
+  "title": "Alarma multinivel",
+  "status": "OK",
+  "expected": [
+   "000",
+   "100",
+   "110",
+   "111",
+   "110",
+   "110",
+   "100",
+   "100",
+   "000"
+  ],
+  "obtained": [
+   "000",
+   "100",
+   "110",
+   "111",
+   "110",
+   "110",
+   "100",
+   "100",
+   "000"
+  ],
+  "note": "OUT1 = \"Vel. baja\" en el FBD pero el ejercicio 3 habla de \"zona Alta (OUT1)\": inconsistencia de nombres. BLINK sobre AND(SR2,SR2) es redundante (basta SR2→BLINK)."
+ },
+ {
+  "id": "10.4",
+  "title": "Bomba con protecciones",
+  "status": "DEFECTO_MANUAL",
+  "expected": [],
+  "obtained": [
+   "10",
+   "11",
+   "11",
+   "10"
+  ],
+  "note": "(1) CMP<0.5 bar no se puede expresar: CMP/SCALE trabajan con enteros; usar SCALE 0–100 (décimas de bar) y CMP<5. (2) \"Presionar IN2 durante 3 s para resetear el contador de horas\" (ejercicio) choca con IN2 = flotante de nivel alto. (3) El \"contador de horas\" (TON 3 600 000 ms → CTU PV=100) solo cuenta tramos de bomba ON ininterrumpidos de 1 hora: el TON se reinicia cada vez que la bomba para, así que ciclos más cortos no acumulan nada; además los contadores viven en RAM y se pierden al reiniciar (según el código; sin retención). No sirve como horómetro de servicio. Se verificó el TON de 5 min y el enclavamiento del SR_timeout; el TON de 1 h no se ejecutó completo."
+ },
+ {
+  "id": "10.5",
+  "title": "Mezcla automatizada",
+  "status": "DEFECTO_MANUAL",
+  "expected": [],
+  "obtained": [
+   "1100"
+  ],
+  "note": "(1) IN2 cuenta unidades de B y también va al R de ambos CTU: cada pulso de B resetea los contadores y la receta no se completa. Con 2 entradas no hay forma de separar \"contar B\" de \"resetear\": el ejemplo necesita RDI (Cap. 9, no ejecutable) o reducirse a un solo ingrediente. (2) El texto usa un R_TRIG de Q_TOF y lo describe como flanco descendente: R_TRIG detecta el ascendente, por lo que el reset ocurre al ABRIR la descarga (las cintas arrancan mientras se descarga). Un F_TRIG sobre ese TOF no sirve (el TOF no cae mientras la receta siga completa: queda trabado). Corrección ejecutada: receta enclavada con RS, descarga con TP de 5 s tras la mezcla y reset de los CTU con F_TRIG de la descarga. (3) La alarma >70 °C no está cableada (solo descripta). (4) Ladder: nivel 3 por R_TRIG/F_TRIG y TOF encadenado."
+ }
+]

@@ -1,0 +1,2769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PLC-CORE-MDE — Ladder PRO</title>
+<link rel="stylesheet" href="style.css">
+<script src="plc_api.js"></script>
+<script src="plc_api_esp.js"></script>
+<script src="compiler.js"></script>
+<script src="symbol_table.js"></script>
+<script src="ladder_ast.js"></script>
+<script src="ladder_program.js"></script>
+<script src="ladder_decompiler.js"></script>
+<script src="ir_check.js"></script>
+<script src="plc_project.js"></script>
+<script src="memory_panel.js"></script>
+<style>
+body { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+
+/* Layout */
+.ld-layout { flex:1; display:flex; overflow:hidden; min-height:0; }
+
+/* Palette */
+.ld-palette {
+  width:152px; min-width:100px; background:var(--bg2);
+  border-right:2px solid var(--border); overflow-y:auto;
+  flex-shrink:0; padding:0; display:flex; flex-direction:column;
+}
+.pal-section { padding:8px 8px 6px; border-bottom:1px solid var(--border); }
+.pal-stitle {
+  font-family:var(--font-mono); font-size:8px; letter-spacing:3px;
+  color:var(--text-dim); text-transform:uppercase; margin-bottom:5px;
+  padding-bottom:3px; border-bottom:1px solid var(--border);
+}
+.pal-item {
+  display:flex; align-items:center; gap:7px; padding:6px 7px;
+  margin-bottom:3px; background:var(--panel); border:1px solid var(--border);
+  border-radius:2px; cursor:pointer; font-family:var(--font-mono);
+  font-size:9px; color:var(--text-mid); user-select:none;
+  transition:all 0.1s; position:relative;
+}
+.pal-item:hover  { border-color:var(--accent2); color:var(--accent2); background:rgba(58,180,242,0.06); }
+.pal-item.active { border-color:var(--accent);  color:var(--accent);  background:rgba(245,166,35,0.10); }
+.pal-sym { font-size:13px; min-width:30px; text-align:center; letter-spacing:-1px; }
+.pal-lbl { font-size:8px; }
+.pal-sub { font-size:7px; color:var(--text-dim); }
+.pal-kbd {
+  position:absolute; right:4px; top:50%; transform:translateY(-50%);
+  font-family:var(--font-mono); font-size:7px; color:var(--text-dim);
+  background:var(--bg); border:1px solid var(--border); border-radius:2px; padding:1px 3px;
+}
+.pal-addrs {
+  font-family:var(--font-mono); font-size:8px; color:var(--text-dim);
+  line-height:1.9; padding:4px 4px;
+}
+.pal-addrs span { display:inline-block; min-width:14px; font-weight:700; }
+
+/* Canvas */
+.ld-canvas {
+  flex:1; overflow:auto; background:var(--bg); position:relative;
+  background-image:radial-gradient(circle, var(--border) 1px, transparent 1px);
+  background-size:24px 24px; background-position:12px 12px;
+}
+.ld-canvas-inner { padding:18px 24px 50px; min-width:720px; }
+
+/* Power rail wrapper */
+.ld-rail-wrap { display:flex; align-items:flex-start; gap:0; }
+.rail-L, .rail-R {
+  width:10px; background:var(--accent2); border-radius:2px;
+  flex-shrink:0; align-self:stretch; position:relative;
+}
+.rail-R { background:var(--accent); }
+.rail-lbl {
+  position:absolute; top:10px; left:50%; transform:translateX(-50%);
+  font-family:var(--font-mono); font-size:7px; color:var(--bg);
+  writing-mode:vertical-rl; letter-spacing:2px; font-weight:700;
+}
+
+/* Rungs list */
+.rungs-list {
+  flex:1; display:flex; flex-direction:column; gap:3px;
+  min-width:0; padding:4px 0;
+}
+
+/* Single rung */
+.rung {
+  display:flex; flex-direction:column; background:var(--panel);
+  border:1px solid var(--border); border-radius:2px; position:relative;
+  transition:border-color 0.1s; min-height:64px;
+}
+.rung:hover    { border-color:var(--border2); }
+.rung.sel      { border-color:var(--accent2); box-shadow:0 0 0 1px rgba(58,180,242,0.15); }
+.rung.drag-ov  { border-color:var(--accent);  background:rgba(245,166,35,0.04); }
+.rung.has-err  { border-color:var(--red);     box-shadow:0 0 0 1px rgba(255,61,90,0.15); }
+
+.rung-num {
+  position:absolute; left:-26px; top:50%; transform:translateY(-50%);
+  font-family:var(--font-mono); font-size:9px; color:var(--text-dim);
+  min-width:22px; text-align:right;
+}
+
+/* Comment bar */
+.rung-cmt {
+  font-family:var(--font-mono); font-size:9px; color:var(--text-dim);
+  padding:2px 8px; border-bottom:1px dashed var(--border);
+  cursor:text; display:flex; align-items:center; min-height:18px;
+}
+.rung-cmt.empty::before { content:'// comment...'; color:var(--border); }
+.rung-cmt input {
+  background:none; border:none; outline:none; color:var(--text-dim);
+  font-family:var(--font-mono); font-size:9px; width:100%; display:none;
+}
+.rung-cmt.editing .cmt-span { display:none; }
+.rung-cmt.editing input     { display:block; }
+
+/* Rung body row */
+.rung-body-row { display:flex; align-items:stretch; }
+
+/* Rung body (paths) */
+.rung-body { display:flex; flex-direction:column; flex:1; }
+
+/* Single path row */
+.rung-row {
+  display:flex; align-items:center; min-height:62px; position:relative;
+}
+.rung-row::before {
+  content:''; position:absolute; left:0; right:0; top:50%;
+  height:2px; background:var(--border2); z-index:0; pointer-events:none;
+}
+/* Vertical line for parallel rows */
+.rung-row.parallel::after {
+  content:''; position:absolute; left:0; top:-50%; bottom:50%;
+  width:3px; background:var(--border2); z-index:0; pointer-events:none;
+}
+
+/* Cell zone */
+.cell-zone {
+  display:flex; align-items:center; gap:2px;
+  flex:1; padding:6px 6px; z-index:1; position:relative;
+}
+
+/* Cell */
+.cell {
+  width:66px; height:52px; flex-shrink:0;
+  display:flex; flex-direction:column; align-items:center;
+  justify-content:center; position:relative; cursor:pointer;
+  border-radius:2px; z-index:2; transition:all 0.1s;
+}
+.cell.empty {
+  border:1px dashed var(--border); background:var(--bg2);
+}
+.cell.empty:hover   { border-color:var(--accent2); background:rgba(58,180,242,0.04); }
+.cell.empty.drop-tgt{ border-color:var(--accent); border-style:solid; background:rgba(245,166,35,0.08); }
+
+.cell.no { border:1px solid var(--border2); background:var(--panel2); }
+.cell.no:hover { border-color:var(--accent2); }
+
+.cell.nc { border:1px solid rgba(0,230,118,0.45); background:var(--panel2); }
+.cell.nc:hover { border-color:var(--green); }
+
+.c-sym  { font-family:var(--font-mono); font-size:15px; color:var(--accent2); letter-spacing:-1px; }
+.cell.nc .c-sym { color:var(--green); }
+.c-addr { font-family:var(--font-mono); font-size:10px; font-weight:700; color:var(--text); margin-top:2px; }
+.c-type { font-family:var(--font-mono); font-size:7px; letter-spacing:1px; color:var(--text-dim); text-transform:uppercase; }
+.c-del  {
+  position:absolute; top:2px; right:2px; font-size:8px;
+  color:var(--text-dim); cursor:pointer; width:12px; height:12px;
+  display:none; align-items:center; justify-content:center; border-radius:2px;
+}
+.cell:hover .c-del { display:flex; }
+.c-del:hover { color:var(--red); background:rgba(255,61,90,0.12); }
+
+/* Branch ctrl bar */
+.branch-bar {
+  display:flex; align-items:center; gap:6px;
+  padding:2px 8px 2px 30px;
+  border-top:1px dashed var(--border);
+  background:rgba(58,180,242,0.02);
+}
+.branch-btn {
+  padding:2px 8px; border:1px dashed var(--border2); border-radius:2px;
+  background:none; color:var(--text-dim); font-family:var(--font-mono);
+  font-size:8px; letter-spacing:1px; cursor:pointer; transition:all 0.1s;
+}
+.branch-btn:hover { border-color:var(--accent2); color:var(--accent2); }
+.branch-del:hover { border-color:var(--red); color:var(--red); }
+.branch-lbl { font-family:var(--font-mono); font-size:8px; color:var(--text-dim); }
+
+/* Coil zone */
+.coil-zone {
+  display:flex; flex-direction:column; justify-content:center;
+  gap:4px; padding:6px 8px 6px 6px; min-width:84px;
+  border-left:2px solid var(--border); z-index:1;
+  background:rgba(245,166,35,0.03); position:relative;
+}
+.coil-zone::before {
+  content:''; position:absolute; left:-8px; top:50%;
+  width:8px; height:2px; background:var(--border2); pointer-events:none;
+}
+
+/* Coil cell */
+.coil-cell {
+  width:76px; height:44px;
+  border:1px solid rgba(245,166,35,0.4); border-radius:2px;
+  background:var(--panel2); display:flex; flex-direction:column;
+  align-items:center; justify-content:center; cursor:pointer;
+  transition:all 0.1s; position:relative;
+}
+.coil-cell:hover       { border-color:var(--accent); background:rgba(245,166,35,0.08); }
+.coil-cell.set-c  { border-color:rgba(0,230,118,0.5); }
+.coil-cell.rst-c  { border-color:rgba(255,61,90,0.5); }
+.co-sym  { font-family:var(--font-mono); font-size:14px; color:var(--accent); }
+.coil-cell.set-c .co-sym { color:var(--green); }
+.coil-cell.rst-c .co-sym { color:var(--red); }
+.co-addr { font-family:var(--font-mono); font-size:10px; font-weight:700; color:var(--text); }
+.co-mode { font-family:var(--font-mono); font-size:7px; color:var(--text-dim); letter-spacing:1px; }
+
+.add-coil-btn {
+  width:76px; height:28px; border:1px dashed var(--border2); border-radius:2px;
+  background:none; color:var(--text-dim); font-family:var(--font-mono); font-size:8px;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; gap:3px;
+}
+.add-coil-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+/* Rung controls */
+.rung-ctrl {
+  display:flex; flex-direction:column; gap:3px; padding:5px 4px;
+  border-left:1px solid var(--border); background:var(--bg2);
+}
+.rctl-btn {
+  width:22px; height:22px; background:none; border:1px solid var(--border);
+  border-radius:2px; color:var(--text-dim); cursor:pointer; font-size:10px;
+  display:flex; align-items:center; justify-content:center; transition:all 0.1s;
+}
+.rctl-btn:hover        { border-color:var(--accent2); color:var(--accent2); }
+.rctl-btn.dng:hover    { border-color:var(--red);     color:var(--red); }
+.rctl-btn.mv:hover     { border-color:var(--yellow);  color:var(--yellow); }
+
+/* Error block */
+.rung-errs { background:rgba(255,61,90,0.08); border-top:1px solid rgba(255,61,90,0.3); padding:3px 8px; }
+.err-line  { font-family:var(--font-mono); font-size:8px; color:var(--red); letter-spacing:0.5px; margin:1px 0; }
+
+/* Add rung */
+.add-rung-row { display:flex; margin-top:8px; padding:0 8px; }
+.add-rung-btn {
+  flex:1; padding:9px; background:rgba(58,180,242,0.03);
+  border:1px dashed var(--border2); border-radius:2px; color:var(--text-dim);
+  font-family:var(--font-mono); font-size:9px; letter-spacing:3px;
+  cursor:pointer; transition:all 0.12s; text-align:center; text-transform:uppercase;
+}
+.add-rung-btn:hover { border-color:var(--accent2); color:var(--accent2); background:rgba(58,180,242,0.07); }
+
+/* ── Function block cells (TON, TOF, TP, CTU, CTD, etc.) ───── */
+/* A block cell sits inline in a path like a contact, but is taller
+   and wider to show the IEC-style box with ports on both sides.   */
+.cell.blk {
+  width:100px; height:64px; flex-shrink:0;
+  border:2px solid rgba(58,180,242,0.55);
+  background:var(--panel2);
+  border-radius:3px;
+  display:flex; flex-direction:column;
+  position:relative; cursor:pointer; z-index:2;
+  transition:border-color 0.1s;
+}
+.cell.blk:hover { border-color:var(--accent2); }
+
+/* Block title bar */
+.blk-title {
+  font-family:var(--font-mono); font-size:8px; font-weight:700;
+  letter-spacing:2px; text-transform:uppercase;
+  color:var(--accent2); text-align:center;
+  padding:2px 4px;
+  border-bottom:1px solid rgba(58,180,242,0.25);
+  background:rgba(58,180,242,0.06);
+}
+
+/* Block body — two columns: left ports, right ports */
+.blk-body {
+  display:flex; flex:1; align-items:stretch;
+  font-family:var(--font-mono); font-size:8px;
+}
+
+/* Left port column (inputs) */
+.blk-ports-l {
+  display:flex; flex-direction:column; justify-content:space-evenly;
+  padding:2px 5px; gap:2px; min-width:40px;
+  border-right:1px solid rgba(58,180,242,0.2);
+}
+
+/* Right port column (outputs) */
+.blk-ports-r {
+  display:flex; flex-direction:column; justify-content:space-evenly;
+  padding:2px 5px; gap:2px; min-width:40px; text-align:right;
+}
+
+/* Individual port label */
+.blk-port {
+  font-size:7px; line-height:1.2;
+  color:var(--text-dim); letter-spacing:0.5px;
+}
+.blk-port.main { color:var(--accent2); font-weight:700; }
+
+/* Block ID label (T0, C1, etc.) */
+.blk-id {
+  position:absolute; bottom:2px; right:4px;
+  font-family:var(--font-mono); font-size:7px;
+  color:var(--text-dim); letter-spacing:1px;
+}
+
+/* Delete button on block */
+.cell.blk .c-del {
+  position:absolute; top:2px; right:2px; font-size:8px;
+  color:var(--text-dim); cursor:pointer; width:12px; height:12px;
+  display:none; align-items:center; justify-content:center; border-radius:2px;
+}
+.cell.blk:hover .c-del { display:flex; }
+.cell.blk .c-del:hover { color:var(--red); background:rgba(255,61,90,0.12); }
+
+/* Horizontal wire through a block — the power rail line is extended
+   by ::before on the row, so the block must not interrupt it.
+   We add left/right connector stubs via pseudo-elements.          */
+.cell.blk::before,
+.cell.blk::after {
+  content:'';
+  position:absolute; top:50%; width:4px; height:2px;
+  background:var(--border2); z-index:0;
+}
+.cell.blk::before { left:-4px; }
+.cell.blk::after  { right:-4px; }
+
+/* Palette block items */
+.pal-blk {
+  font-size:7px; color:var(--text-dim); margin-top:1px; letter-spacing:0.5px;
+}
+
+/* Right panel */
+.ld-right {
+  width:210px; min-width:150px; flex-shrink:0;
+  border-left:2px solid var(--border); display:flex;
+  flex-direction:column; overflow:hidden; background:var(--bg2);
+}
+.ld-right-hdr {
+  padding:7px 10px; border-bottom:1px solid var(--border); background:var(--panel);
+  font-family:var(--font-head); font-size:9px; font-weight:700;
+  letter-spacing:3px; text-transform:uppercase; color:var(--text-dim); flex-shrink:0;
+}
+.ld-right-body { flex:1; overflow-y:auto; }
+
+.ast-pane {
+  border-top:1px solid var(--border); padding:6px 8px; background:var(--bg);
+  font-family:var(--font-mono); font-size:8px; color:var(--text-dim);
+  max-height:150px; overflow-y:auto; flex-shrink:0;
+}
+.ast-phdr {
+  font-size:7px; letter-spacing:3px; text-transform:uppercase; color:var(--text-dim);
+  margin-bottom:4px; border-bottom:1px solid var(--border); padding-bottom:2px;
+}
+.ast-expr { color:var(--accent2); word-break:break-all; line-height:1.6; }
+.ast-ok   { color:var(--green); }
+.ast-err  { color:var(--red); }
+
+/* Modal */
+.modal-bg {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,0.72);
+  z-index:600; align-items:center; justify-content:center;
+}
+.modal-bg.show { display:flex; }
+.modal-box {
+  background:var(--panel); border:1px solid var(--border2); border-radius:4px;
+  padding:20px 24px; min-width:262px; max-width:92vw;
+}
+.modal-ttl { font-family:var(--font-head); font-size:12px; letter-spacing:3px; text-transform:uppercase; color:var(--accent2); margin-bottom:14px; }
+.modal-lbl { font-family:var(--font-mono); font-size:9px; color:var(--text-dim); display:block; margin-bottom:3px; }
+.modal-inp {
+  width:100%; background:var(--bg); border:1px solid var(--border2); color:var(--text);
+  padding:7px 9px; border-radius:3px; font-family:var(--font-mono); font-size:13px; margin-bottom:5px;
+}
+.modal-inp:focus { outline:none; border-color:var(--accent2); }
+.modal-hint { font-family:var(--font-mono); font-size:8px; color:var(--text-dim); margin-bottom:14px; }
+.modal-row  { display:flex; gap:8px; justify-content:flex-end; }
+.modal-row button { padding:5px 16px; border:1px solid; border-radius:3px; cursor:pointer; font-family:var(--font-head); font-size:10px; letter-spacing:2px; text-transform:uppercase; }
+.btn-ok  { background:rgba(58,180,242,0.1); border-color:var(--accent2); color:var(--accent2); }
+.btn-cnl { background:none; border-color:var(--border2); color:var(--text-dim); }
+
+.mode-row { display:flex; gap:6px; margin-bottom:12px; }
+.mode-opt {
+  flex:1; padding:5px; border:1px solid var(--border2); border-radius:2px;
+  background:var(--bg2); color:var(--text-dim); font-family:var(--font-mono);
+  font-size:8px; text-align:center; cursor:pointer; letter-spacing:1px;
+}
+.mode-opt.sel { border-color:var(--accent); color:var(--accent); background:rgba(245,166,35,0.1); }
+
+/* Block modal — two-field form for block ID + preset */
+.blk-modal-row {
+  display:flex; gap:10px; margin-bottom:10px;
+}
+.blk-modal-col {
+  display:flex; flex-direction:column; flex:1;
+}
+.cell.edge { border:1px solid rgba(255,214,0,0.55); background:var(--panel2); }
+.cell.edge:hover { border-color:var(--yellow); }
+.cell.edge .c-sym { color:var(--yellow); }
+.cell.cmp { border:1px solid rgba(180,120,255,0.6); background:var(--panel2); min-width:74px; }
+.cell.cmp:hover { border-color:#b478ff; }
+.cell.cmp .c-sym { color:#b478ff; font-size:11px; letter-spacing:0; }
+.cell.fn { border:1px solid rgba(58,180,242,0.55); background:var(--panel2); min-width:92px; padding:3px 6px; cursor:pointer; position:relative; }
+.cell.fn:hover { border-color:var(--accent2); }
+.cell.fn:hover .c-del { display:flex; }
+.fn-title { font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:2px; color:var(--accent2); border-bottom:1px solid var(--border); margin-bottom:2px; }
+.fn-line { font-family:var(--font-mono); font-size:8px; color:var(--text); white-space:pre; }
+.fn-arrow { font-family:var(--font-mono); color:var(--accent2); align-self:center; padding:0 2px; }
+.num-row .cell-zone { align-items:center; }
+.coil-cell.pwm-c { border-color:rgba(180,120,255,0.6); }
+.coil-cell.pwm-c .co-sym { color:#b478ff; font-size:11px; }
+.coil-cell.ld-c { border-color:rgba(58,180,242,0.6); }
+.coil-cell.ld-c .co-sym { color:var(--accent2); }
+.warn-line { font-family:var(--font-mono); font-size:8px; color:var(--yellow); padding:1px 8px; }
+.proj-name { background:var(--panel2); color:var(--text); border:1px solid var(--border2); border-radius:2px; padding:4px 7px; font-family:var(--font-mono); font-size:11px; width:150px; }
+.proj-msg { font-family:var(--font-mono); font-size:11px; padding:6px 14px; border-bottom:1px solid var(--border2); white-space:pre-wrap; }
+.proj-msg.ok { color:var(--green); } .proj-msg.warn { color:var(--yellow); } .proj-msg.err { color:var(--red); }
+#conv-banner { display:none; margin:0; padding:8px 14px; font-family:var(--font-mono); font-size:10px; border-bottom:2px solid var(--yellow); background:rgba(255,214,0,0.08); color:var(--text); max-height:34vh; overflow:auto; }
+#conv-banner.ok { border-bottom-color:var(--green); background:rgba(0,230,118,0.07); }
+#conv-banner .cb-ttl { font-weight:700; color:var(--yellow); letter-spacing:1px; margin-bottom:4px; }
+#conv-banner.ok .cb-ttl { color:var(--green); }
+#conv-banner li { margin:2px 0 2px 16px; }
+#conv-banner .cb-raw { color:var(--text-dim); font-size:8px; }
+#conv-banner button { margin:6px 6px 0 0; padding:3px 10px; border:1px solid var(--border2); background:var(--panel2); color:var(--text); cursor:pointer; font-family:var(--font-mono); font-size:9px; }
+.mode-row.four .mode-opt { min-width:0; }
+.blk-modal-col .modal-inp { margin-bottom:0; }
+
+/* ── Energización de líneas + flujo animado ─────────────────── */
+/* Applied by updateVisualState() via .energized class on .rung-row.
+   No DOM recreation — only class toggling on existing elements.   */
+
+/* Horizontal wire energizada */
+.rung-row.energized::before {
+  background: var(--green);
+  box-shadow: 0 0 4px rgba(0,230,118,0.6);
+  height: 3px;
+}
+
+/* Vertical join energizado */
+.rung-row.parallel.energized::after {
+  background: var(--green);
+  box-shadow: 2px 0 4px rgba(0,230,118,0.4);
+  width: 3px;
+}
+
+/* Partícula de flujo animada */
+.wire-flow {
+  position: absolute; top: calc(50% - 3px);
+  width: 18px; height: 6px; border-radius: 3px;
+  background: rgba(0,230,118,0.0);
+  pointer-events: none; z-index: 1; left: 0;
+}
+.rung-row.energized .wire-flow {
+  background: rgba(0,230,118,0.75);
+  animation: flow-pulse 1.1s linear infinite;
+}
+@keyframes flow-pulse {
+  0%   { left: 0%;   opacity: 0; }
+  5%   { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { left: calc(100% - 18px); opacity: 0; }
+}
+
+/* Rail izquierdo energizado cuando algún rung está activo */
+.rail-L.energized {
+  background: var(--green);
+  box-shadow: 2px 0 8px rgba(0,230,118,0.5);
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+/* ── Debug visual: runtime state highlight ──────────────────── */
+/* Applied by updateVisualState() — never by static render.
+   Classes are toggled on existing DOM elements, no re-render.  */
+
+/* Active contact (condition is TRUE) */
+.cell.no.dbg-on,
+.cell.nc.dbg-on {
+  border-color: var(--green);
+  background: rgba(0,230,118,0.12);
+  box-shadow: 0 0 4px rgba(0,230,118,0.35);
+}
+.cell.no.dbg-on .c-sym,
+.cell.nc.dbg-on .c-sym { color: var(--green); }
+
+/* Active coil (output is energised) */
+.coil-cell.dbg-on {
+  border-color: var(--green);
+  background: rgba(0,230,118,0.12);
+  box-shadow: 0 0 5px rgba(0,230,118,0.4);
+}
+.coil-cell.dbg-on .co-sym { color: var(--green); }
+
+/* Active block (Q = true) */
+.cell.blk.dbg-on {
+  border-color: var(--green);
+  box-shadow: 0 0 6px rgba(0,230,118,0.5);
+}
+.cell.blk.dbg-on .blk-title {
+  background: rgba(0,230,118,0.15);
+  color: var(--green);
+}
+
+/* Live value display inside block (CV, ET) */
+.blk-live {
+  position: absolute; bottom: 2px; left: 4px;
+  font-family: var(--font-mono); font-size: 7px;
+  color: var(--green); letter-spacing: 0.5px;
+  pointer-events: none;
+}
+
+/* Debug mode indicator in status bar */
+.dbg-badge {
+  font-family: var(--font-mono); font-size: 8px; letter-spacing: 2px;
+  padding: 1px 6px; border-radius: 2px; border: 1px solid;
+  cursor: pointer; transition: all 0.1s;
+}
+.dbg-badge.off { border-color: var(--border2); color: var(--text-dim); }
+.dbg-badge.on  { border-color: var(--green);   color: var(--green);
+                  background: rgba(0,230,118,0.08); animation: dbg-pulse 2s infinite; }
+@keyframes dbg-pulse {
+  0%,100% { box-shadow: none; }
+  50%      { box-shadow: 0 0 6px rgba(0,230,118,0.4); }
+}
+
+/* Status strip */
+.cs-strip {
+  display:flex; align-items:center; gap:10px; padding:4px 12px;
+  border-top:1px solid var(--border); background:var(--panel); flex-shrink:0;
+  font-family:var(--font-mono); font-size:9px; color:var(--text-dim);
+}
+.cs-dot { width:7px; height:7px; border-radius:50%; background:var(--border2); flex-shrink:0; }
+.cs-dot.ok   { background:var(--green);  box-shadow:0 0 5px var(--green); }
+.cs-dot.err  { background:var(--red);    box-shadow:0 0 5px var(--red);   }
+.cs-dot.warn { background:var(--yellow); box-shadow:0 0 5px var(--yellow); }
+.cs-ok   { color:var(--green); }
+.cs-err  { color:var(--red); }
+.cs-warn { color:var(--yellow); }
+
+@media (max-width:780px) {
+  .ld-right { display:none; }
+  .ld-palette { width:90px; }
+  .pal-lbl, .pal-sub, .pal-kbd { display:none; }
+  .pal-sym { min-width:100%; }
+}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-title">Ladder PRO — LD</div>
+  <div class="topbar-spacer"></div>
+  <div id="mode-badge" class="mode-badge stop">STOP</div>
+  <div class="topbar-sep"></div>
+  <button class="ctrl-btn run"  onclick="plcRun()">&#x25BA; RUN</button>
+  <button class="ctrl-btn stop" onclick="plcStop()">&#x25A0; STOP</button>
+  <div class="topbar-sep"></div>
+  <button class="ctrl-btn save" id="btn-save-plc" onclick="compileAndSend()" title="Compilar, validar y enviar el programa al PLC">&#x2B06; Guardar en PLC</button>
+  <button class="ctrl-btn"      onclick="validateAll()">&#x2713; VALIDATE</button>
+  <button class="ctrl-btn"      onclick="saveDraft()">&#x1F4BE; DRAFT</button>
+  <button class="ctrl-btn"      onclick="clearAll()">&#x2715; NEW</button>
+  <div class="topbar-sep"></div>
+  <button class="ctrl-btn"      onclick="exportJSON()" title="Exportar solo los renglones Ladder como JSON (formato anterior)">&#x2913; JSON</button>
+  <input type="file" id="imp-file" accept=".json" style="display:none" onchange="importJSON(this)">
+  <button class="ctrl-btn"      onclick="document.getElementById('imp-file').click()" title="Importar un JSON Ladder (formato anterior)">&#x2912; IMPORT JSON</button>
+  <div class="topbar-sep"></div>
+  <input id="proj-name" class="proj-name" type="text" maxlength="48" value="Proyecto Ladder" title="Nombre del proyecto (se usa en el archivo .plc)" aria-label="Nombre del proyecto">
+  <button class="ctrl-btn" id="btn-export" onclick="exportProject()" title="Descargar el proyecto completo como archivo .plc (no toca el PLC)">&#x2B07; Exportar proyecto</button>
+  <input type="file" id="proj-file" accept=".plc,.json,application/json" style="display:none" onchange="importProject(this)">
+  <button class="ctrl-btn" id="btn-import" onclick="document.getElementById('proj-file').click()" title="Abrir un archivo .plc en este editor (no guarda nada en el PLC)">&#x2B06; Importar proyecto</button>
+  <button class="ctrl-btn"      id="btn-from-fbd" onclick="convertFromSaved()" title="Convert the FBD program saved on the device to Ladder (verified)">&#x21BB; FROM FBD</button>
+  <div class="topbar-sep"></div>
+  <a href="index.html"><button class="ctrl-btn">&#x2302; HOME</button></a>
+</div>
+
+<div id="proj-msg" class="proj-msg" role="status" aria-live="polite" style="display:none"></div>
+<div id="conv-banner"></div>
+
+<!-- LAYOUT -->
+<div class="ld-layout">
+
+  <!-- PALETTE -->
+  <div class="ld-palette">
+    <div class="pal-section">
+      <div class="pal-stitle">Contacts</div>
+      <div class="pal-item" id="pal-NO" onclick="selectTool('NO',this)" draggable="true" ondragstart="palDrag(event,'NO')">
+        <span class="pal-sym">&#x2524; &#x251C;</span>
+        <div><div class="pal-lbl">Normally Open</div><div class="pal-sub">NO / N.O.</div></div>
+        <span class="pal-kbd">1</span>
+      </div>
+      <div class="pal-item" id="pal-NC" onclick="selectTool('NC',this)" draggable="true" ondragstart="palDrag(event,'NC')">
+        <span class="pal-sym">&#x2524;/&#x251C;</span>
+        <div><div class="pal-lbl">Normally Closed</div><div class="pal-sub">NC / N.C.</div></div>
+        <span class="pal-kbd">2</span>
+      </div>
+      <div class="pal-item" id="pal-P" onclick="selectTool('P',this)" draggable="true" ondragstart="palDrag(event,'P')">
+        <span class="pal-sym">&#x2524;P&#x251C;</span>
+        <div><div class="pal-lbl">Rising Edge</div><div class="pal-sub">[P] 1 scan</div></div>
+        <span class="pal-kbd">P</span>
+      </div>
+      <div class="pal-item" id="pal-N" onclick="selectTool('N',this)" draggable="true" ondragstart="palDrag(event,'N')">
+        <span class="pal-sym">&#x2524;N&#x251C;</span>
+        <div><div class="pal-lbl">Falling Edge</div><div class="pal-sub">[N] 1 scan</div></div>
+        <span class="pal-kbd">N</span>
+      </div>
+    </div>
+    <div class="pal-section">
+      <div class="pal-stitle">Coils</div>
+      <div class="pal-item" id="pal-COIL" onclick="selectTool('COIL',this)" draggable="true" ondragstart="palDrag(event,'COIL')">
+        <span class="pal-sym">( )</span>
+        <div><div class="pal-lbl">Output Coil</div><div class="pal-sub">Normal</div></div>
+        <span class="pal-kbd">3</span>
+      </div>
+      <div class="pal-item" id="pal-SET" onclick="selectTool('SET',this)" draggable="true" ondragstart="palDrag(event,'SET')">
+        <span class="pal-sym">(S)</span>
+        <div><div class="pal-lbl">Set Coil</div><div class="pal-sub">Latch ON</div></div>
+        <span class="pal-kbd">4</span>
+      </div>
+      <div class="pal-item" id="pal-RST" onclick="selectTool('RESET',this)" draggable="true" ondragstart="palDrag(event,'RESET')">
+        <span class="pal-sym">(R)</span>
+        <div><div class="pal-lbl">Reset Coil</div><div class="pal-sub">Latch OFF</div></div>
+        <span class="pal-kbd">5</span>
+      </div>
+      <div class="pal-item" id="pal-CRST" onclick="selectTool('CRST',this)" draggable="true" ondragstart="palDrag(event,'CRST')">
+        <span class="pal-sym" style="font-size:10px">(R)C</span>
+        <div><div class="pal-lbl">Counter Reset</div><div class="pal-sub">CTU R input</div></div>
+      </div>
+      <div class="pal-item" id="pal-CLD" onclick="selectTool('CLD',this)" draggable="true" ondragstart="palDrag(event,'CLD')">
+        <span class="pal-sym" style="font-size:10px">(LD)</span>
+        <div><div class="pal-lbl">Counter Load</div><div class="pal-sub">CTD LD input</div></div>
+      </div>
+      <div class="pal-item" id="pal-PWMC" onclick="selectTool('PWMC',this)" draggable="true" ondragstart="palDrag(event,'PWMC')">
+        <span class="pal-sym" style="font-size:10px">(PWM)</span>
+        <div><div class="pal-lbl">PWM on/off</div><div class="pal-sub">cond. &rarr; 0 / 4095</div></div>
+      </div>
+    </div>
+    <div class="pal-section">
+      <div class="pal-stitle">Timers</div>
+      <div class="pal-item" id="pal-TON" onclick="selectTool('TON',this)" draggable="true" ondragstart="palDrag(event,'TON')">
+        <span class="pal-sym" style="font-size:10px">TON</span>
+        <div><div class="pal-lbl">Timer ON</div><div class="pal-blk">Delay ON</div></div>
+        <span class="pal-kbd">6</span>
+      </div>
+      <div class="pal-item" id="pal-TOF" onclick="selectTool('TOF',this)" draggable="true" ondragstart="palDrag(event,'TOF')">
+        <span class="pal-sym" style="font-size:10px">TOF</span>
+        <div><div class="pal-lbl">Timer OFF</div><div class="pal-blk">Delay OFF</div></div>
+        <span class="pal-kbd">7</span>
+      </div>
+      <div class="pal-item" id="pal-TP" onclick="selectTool('TP',this)" draggable="true" ondragstart="palDrag(event,'TP')">
+        <span class="pal-sym" style="font-size:10px">TP</span>
+        <div><div class="pal-lbl">Pulse</div><div class="pal-blk">One-shot</div></div>
+      </div>
+      <div class="pal-item" id="pal-BLINK" onclick="selectTool('BLINK',this)" draggable="true" ondragstart="palDrag(event,'BLINK')">
+        <span class="pal-sym" style="font-size:9px">BLINK</span>
+        <div><div class="pal-lbl">Blink</div><div class="pal-blk">Oscillator</div></div>
+      </div>
+    </div>
+    <div class="pal-section">
+      <div class="pal-stitle">Counters</div>
+      <div class="pal-item" id="pal-CTU" onclick="selectTool('CTU',this)" draggable="true" ondragstart="palDrag(event,'CTU')">
+        <span class="pal-sym" style="font-size:10px">CTU</span>
+        <div><div class="pal-lbl">Count Up</div><div class="pal-blk">Counter ↑</div></div>
+        <span class="pal-kbd">8</span>
+      </div>
+      <div class="pal-item" id="pal-CTD" onclick="selectTool('CTD',this)" draggable="true" ondragstart="palDrag(event,'CTD')">
+        <span class="pal-sym" style="font-size:10px">CTD</span>
+        <div><div class="pal-lbl">Count Down</div><div class="pal-blk">Counter ↓</div></div>
+        <span class="pal-kbd">9</span>
+      </div>
+    </div>
+    <div class="pal-section">
+      <div class="pal-stitle">Compare</div>
+      <div class="pal-item" id="pal-CMP" onclick="selectTool('CMP',this)" draggable="true" ondragstart="palDrag(event,'CMP')">
+        <span class="pal-sym" style="font-size:10px">CMP</span>
+        <div><div class="pal-lbl">Comparator</div><div class="pal-sub">AI1 / Sn vs value</div></div>
+      </div>
+    </div>
+    <div class="pal-section">
+      <div class="pal-stitle">Analog</div>
+      <div class="pal-item" style="cursor:pointer" onclick="addNumRung()">
+        <span class="pal-sym" style="font-size:10px">AI1</span>
+        <div><div class="pal-lbl">+ Analog Rung</div><div class="pal-sub">AI1 &rarr; SCALE &rarr; PWM</div></div>
+      </div>
+    </div>
+    <div class="pal-section">
+      <div class="pal-stitle">Addresses</div>
+      <div class="pal-addrs">
+        <span style="color:var(--accent2)">X</span>0-X7 Inputs<br>
+        <span style="color:var(--accent)">Y</span>0-Y7 Outputs<br>
+        <span style="color:#3ab4f2">M</span>0-M15 Markers<br>
+        <span style="color:var(--yellow)">T</span>0-T7 Timers<br>
+        <span style="color:var(--green)">C</span>0-C7 Counters<br>
+        <span style="color:#b478ff">S</span>0.. SCALE &middot; AI1
+      </div>
+    </div>
+    <div class="pal-section" style="margin-top:auto">
+      <div class="pal-item" style="cursor:pointer" onclick="addRung()">
+        <span class="pal-sym">+</span>
+        <div><div class="pal-lbl">Add Rung</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="ld-canvas" id="ld-canvas">
+    <div class="ld-canvas-inner">
+      <div class="ld-rail-wrap">
+        <div class="rail-L"><span class="rail-lbl">L+</span></div>
+        <div class="rungs-list" id="rungs-list"></div>
+        <div class="rail-R"><span class="rail-lbl">N</span></div>
+      </div>
+      <div class="add-rung-row">
+        <button class="add-rung-btn" onclick="addRung()">+ ADD RUNG</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="ld-right">
+    <div class="ld-right-hdr">PLC Memory</div>
+    <div class="ld-right-body" id="mem-mount"></div>
+    <div class="ast-pane">
+      <div class="ast-phdr">AST &mdash; Selected Rung</div>
+      <div id="ast-preview" class="ast-expr" style="color:var(--text-dim);font-size:7px;">Select a rung.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- COMPILE STATUS -->
+<div class="cs-strip">
+  <div class="cs-dot" id="cs-dot"></div>
+  <span id="cs-msg">Ready</span>
+  <span style="flex:1"></span>
+  <span id="dbg-badge" class="dbg-badge off" onclick="toggleDebug()" title="Toggle live debug highlight">DEBUG</span>
+  <span id="cs-nc" style="color:var(--border2)"></span>
+  <span style="color:var(--border2)">PLC-CORE-MDE &middot; Ladder PRO v2</span>
+</div>
+
+<!-- STATUSBAR (global) -->
+<div class="statusbar">
+  <span id="sb-time">--:--:--</span>
+  <span id="sb-status">Ladder PRO &middot; Ready</span>
+</div>
+
+<!-- MODAL -->
+<div class="modal-bg" id="elem-modal">
+  <div class="modal-box">
+    <div class="modal-ttl" id="mdl-title">Element</div>
+    <label class="modal-lbl" id="mdl-lbl">Address</label>
+    <input class="modal-inp" id="mdl-addr" type="text" placeholder="X0" maxlength="8" autocomplete="off">
+    <div class="modal-hint" id="mdl-hint">X=input | Y=output | M=marker | T=timer</div>
+    <div id="mdl-mode-sec" style="display:none">
+      <label class="modal-lbl" style="margin-bottom:5px">Coil Mode</label>
+      <div class="mode-row">
+        <div class="mode-opt sel" id="mode-NORMAL" onclick="selMode('NORMAL')">NORMAL<br><small>( )</small></div>
+        <div class="mode-opt"    id="mode-SET"    onclick="selMode('SET')">SET<br><small>(S)</small></div>
+        <div class="mode-opt"    id="mode-RESET"  onclick="selMode('RESET')">RESET<br><small>(R)</small></div>
+        <div class="mode-opt"    id="mode-LOAD"   onclick="selMode('LOAD')">LOAD<br><small>(LD)</small></div>
+      </div>
+      <div id="mdl-prio-sec" style="display:none;margin-top:8px">
+        <label class="modal-lbl" style="margin-bottom:5px">Priority when SET and RESET are both true</label>
+        <div class="mode-row">
+          <div class="mode-opt sel" id="prio-S" onclick="selPrio('S')">SR<br><small>SET wins</small></div>
+          <div class="mode-opt"     id="prio-R" onclick="selPrio('R')">RS<br><small>RESET wins</small></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-row">
+      <button class="btn-cnl" onclick="closeModal()">Cancel</button>
+      <button class="btn-ok"  onclick="confirmModal()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- BLOCK MODAL -->
+<div class="modal-bg" id="blk-modal">
+  <div class="modal-box">
+    <div class="modal-ttl" id="blk-modal-title">TON</div>
+    <div class="blk-modal-row">
+      <div class="blk-modal-col">
+        <label class="modal-lbl">Block ID (e.g. T0, C1)</label>
+        <input class="modal-inp" id="blk-modal-id" type="text" placeholder="T0" maxlength="6" autocomplete="off">
+      </div>
+      <div class="blk-modal-col">
+        <label class="modal-lbl" id="blk-modal-preset-lbl">Preset (ms)</label>
+        <input class="modal-inp" id="blk-modal-preset" type="number" placeholder="1000" min="0" style="width:100%">
+      </div>
+    </div>
+    <div class="modal-hint">T=timer (TON/TOF)  C=counter (CTU/CTD)</div>
+    <div class="modal-row">
+      <button class="btn-cnl" onclick="closeBlockModal()">Cancel</button>
+      <button class="btn-ok"  onclick="confirmBlockModal()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- PARAMETER MODAL (CMP, SCALE, PWM, AI1) -->
+<div class="modal-bg" id="prm-modal">
+  <div class="modal-box">
+    <div class="modal-ttl" id="prm-title">Parameters</div>
+    <div id="prm-fields"></div>
+    <div class="modal-hint" id="prm-hint"></div>
+    <div class="modal-row">
+      <button class="btn-cnl" onclick="closeParamModal()">Cancel</button>
+      <button class="btn-ok"  id="prm-ok" onclick="confirmParamModal()">OK</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   LADDER EDITOR PRO — Core Logic
+   ================================================================
+   DATA MODEL (paths format — new):
+     rungs[] = [rung, ...]
+     rung = {
+       id:       string (unique),
+       comment:  string,
+       paths:    [ [elem,...], ... ],   // parallel rows (OR'd)
+       outputs:  [ coil, ... ]
+     }
+     elem = { type:'CONTACT', var:'X0', negated:bool }
+            | { type:'EDGE', var:'X0', edge:'P'|'N', negated? }          (v4)
+            | { type:'CMP', src:'AI1'|'S0', op, value | src2, negated? } (v4)
+            | { type:'BLOCK', blockType:TON|TOF|TP|BLINK|CTU|CTD, id, preset }
+     coil = { type:'COIL', var:'Y0', mode:'NORMAL'|'SET'|'RESET'|'LOAD', dom?:'R' }
+            | { type:'PWM', out:0..3 }                                    (v4)
+     analog rung (v4) = { id, kind:'NUM', chain:[{fn:'AI1'},{fn:'SCALE',id:'S0',...},{fn:'PWM',out}] }
+     Format version 4 (LadderAST.FORMAT_VERSION); v1-v3 projects are migrated on load.
+
+   BACKWARD COMPAT: legacyToPaths() from ladder_ast.js handles old format.
+   ================================================================ */
+'use strict';
+
+var rungs = [];
+var selTool = 'NO';
+var selRungId = null;
+var _uid = 1;
+var _ctx = null;     // modal context
+var _coilMode = 'NORMAL';
+
+function uid(){ return 'r'+(_uid++); }
+
+/* ── Rung factory ─────────────────────────────────────────── */
+function mkRung(cmt){
+  return { id:uid(), comment:cmt||'', paths:[[]], outputs:[] };
+}
+
+/* ── Default rung: one NO contact + one NORMAL coil ─────────── *
+ *  Used when no saved program exists, so the editor starts in   *
+ *  a valid, error-free state rather than showing blank rungs.   */
+function createDefaultRung(){
+  return {
+    id:      uid(),
+    comment: '',
+    paths:   [ [ { type:'CONTACT', var:'X0', negated:false } ] ],
+    outputs: [ { type:'COIL', var:'Y0', mode:'NORMAL' } ]
+  };
+}
+
+/* ── Tool selection ────────────────────────────────────────── */
+function selectTool(t, el){
+  selTool = t;
+  document.querySelectorAll('.pal-item').forEach(function(e){ e.classList.remove('active'); });
+  if(el) el.classList.add('active');
+  setStatus('Tool: '+t);
+}
+selectTool('NO', document.getElementById('pal-NO'));
+
+/* ── Keyboard shortcuts ────────────────────────────────────── */
+document.addEventListener('keydown', function(e){
+  if(e.target.tagName==='INPUT') return;
+  var m={'1':'NO','2':'NC','3':'COIL','4':'SET','5':'RESET','6':'TON','7':'TOF','8':'CTU','9':'CTD','p':'P','n':'N'};
+  var p={'NO':'pal-NO','NC':'pal-NC','COIL':'pal-COIL','SET':'pal-SET','RESET':'pal-RST',
+         'TON':'pal-TON','TOF':'pal-TOF','CTU':'pal-CTU','CTD':'pal-CTD','P':'pal-P','N':'pal-N'};
+  if(m[e.key]){ selectTool(m[e.key], document.getElementById(p[m[e.key]])); e.preventDefault(); }
+  if(e.key==='Escape') closeModal();
+  if(e.key==='Delete' && selRungId && !_ctx) deleteRung(selRungId);
+});
+
+/* ================================================================ RUNG CRUD ================================================================ */
+function addRung(afterId){
+  var r=mkRung();
+  if(afterId){
+    var i=rungs.findIndex(function(x){return x.id===afterId;});
+    rungs.splice(i>=0?i+1:rungs.length,0,r);
+  } else rungs.push(r);
+  renderAll(); selRung(r.id);
+  setStatus('Rung '+(rungs.length)+' added');
+}
+
+function deleteRung(id){
+  if(rungs.length<=1 && !confirm('Delete last rung?')) return;
+  rungs=rungs.filter(function(r){return r.id!==id;});
+  if(selRungId===id) selRungId=null;
+  renderAll();
+  setStatus('Rung deleted');
+}
+
+function moveRung(id,dir){
+  var i=rungs.findIndex(function(r){return r.id===id;}); if(i<0) return;
+  var j=i+dir; if(j<0||j>=rungs.length) return;
+  var t=rungs[i]; rungs[i]=rungs[j]; rungs[j]=t; renderAll();
+}
+
+function selRung(id){
+  selRungId=id;
+  document.querySelectorAll('.rung').forEach(function(el){
+    el.classList.toggle('sel', el.dataset.rungId===id);
+  });
+  updateAST(id);
+}
+
+function getRung(id){ return rungs.find(function(r){return r.id===id;})||null; }
+
+/* ================================================================ PATH / ELEMENT CRUD ================================================================ */
+function addPath(rid){
+  var r=getRung(rid); if(!r) return;
+  r.paths.push([]); renderAll(); setStatus('Parallel branch added');
+}
+
+function delPath(rid,pi){
+  var r=getRung(rid); if(!r||r.paths.length<=1) return;
+  r.paths.splice(pi,1); renderAll();
+}
+
+function setElem(rid,pi,ci,elem){
+  var r=getRung(rid); if(!r) return;
+  var p=r.paths[pi]; if(!p) return;
+  while(p.length<=ci) p.push(null);
+  p[ci]=elem;
+  while(p.length>0&&p[p.length-1]===null) p.pop();
+  renderAll(); updateAST(rid);
+}
+
+function delElem(rid,pi,ci){
+  var r=getRung(rid); if(!r) return;
+  var p=r.paths[pi]; if(!p) return;
+  p.splice(ci,1); renderAll(); updateAST(rid);
+}
+
+function addCoil(rid,coil){
+  var r=getRung(rid); if(!r) return;
+  r.outputs.push(coil); renderAll(); updateAST(rid);
+}
+
+function delCoil(rid,ci){
+  var r=getRung(rid); if(!r) return;
+  r.outputs.splice(ci,1); renderAll(); updateAST(rid);
+}
+
+/* ================================================================ VALIDATION ================================================================ */
+function validateAll(){
+  var tot=0, warns=0;
+  rungs.forEach(function(r){
+    tot += LadderAST.validateRung(r).length;
+  });
+  LadderAST.validateProgram(rungs).forEach(function(m){ if(m.level==='error') tot++; else warns++; });
+  renderAll();
+  if(tot===0){
+    var msg='All '+rungs.length+' rung(s) valid'+(warns?' ('+warns+' warning(s))':'');
+    setStatus(msg); csStatus(warns?'warn':'ok',msg);
+  }
+  else       { setStatus(tot+' error(s) found');               csStatus('err',tot+' error(s)'); }
+  return tot;
+}
+
+/* ================================================================ RENDER ================================================================ */
+function renderAll(){
+  var c=document.getElementById('rungs-list'); c.innerHTML='';
+  try{ _progMsgs=LadderAST.validateProgram(rungs); }catch(e){ _progMsgs=[]; }
+  rungs.forEach(function(rung,ri){ c.appendChild(mkRungEl(rung,ri)); });
+  updateAST(selRungId);
+}
+var _progMsgs=[];
+
+function mkRungEl(rung,ri){
+  var errs=LadderAST.validateRung(rung);
+  var pmsgs=_progMsgs.filter(function(m){ return m.rung===ri; });
+  var div=document.createElement('div');
+  div.className='rung'+(rung.id===selRungId?' sel':'')+((errs.length||pmsgs.some(function(m){return m.level==='error';}))?' has-err':'');
+  div.dataset.rungId=rung.id;
+  div.onclick=function(e){
+    if(e.target.closest('button')||e.target.closest('.cell')||e.target.closest('.coil-cell')) return;
+    selRung(rung.id);
+  };
+
+  /* drag rung reorder */
+  div.draggable=true;
+  div.ondragstart=function(e){ e.dataTransfer.setData('rung-id',rung.id); e.dataTransfer.effectAllowed='move'; };
+  div.ondragover =function(e){ e.preventDefault(); div.classList.add('drag-ov'); };
+  div.ondragleave=function(){  div.classList.remove('drag-ov'); };
+  div.ondrop=function(e){
+    e.preventDefault(); div.classList.remove('drag-ov');
+    var sid=e.dataTransfer.getData('rung-id');
+    if(sid&&sid!==rung.id){
+      var si=rungs.findIndex(function(r){return r.id===sid;});
+      var di=rungs.findIndex(function(r){return r.id===rung.id;});
+      if(si>=0&&di>=0){ var tmp=rungs.splice(si,1)[0]; rungs.splice(di,0,tmp); renderAll(); }
+    }
+  };
+
+  /* rung number */
+  var num=document.createElement('div'); num.className='rung-num';
+  num.textContent=String(ri+1).padStart(2,'0'); div.appendChild(num);
+
+  /* comment */
+  div.appendChild(mkCmtEl(rung));
+
+  /* body row = paths + coil zone + ctrl */
+  var brow=document.createElement('div'); brow.style.cssText='display:flex;align-items:stretch;';
+  if(rung.kind==='NUM'){ brow.appendChild(mkNumBody(rung)); }
+  else { brow.appendChild(mkBodyEl(rung)); brow.appendChild(mkCoilZone(rung)); }
+  brow.appendChild(mkRungCtrl(rung));
+  div.appendChild(brow);
+
+  /* errors */
+  if(errs.length || pmsgs.length){
+    var ed=document.createElement('div'); ed.className='rung-errs';
+    errs.forEach(function(e){
+      var el=document.createElement('div'); el.className='err-line'; el.textContent='! '+e; ed.appendChild(el);
+    });
+    pmsgs.forEach(function(m){
+      var el=document.createElement('div'); el.className=m.level==='error'?'err-line':'warn-line';
+      el.textContent=(m.level==='error'?'! ':'⚠ ')+m.msg; ed.appendChild(el);
+    });
+    div.appendChild(ed);
+  }
+  return div;
+}
+
+function mkCmtEl(rung){
+  var div=document.createElement('div');
+  div.className='rung-cmt'+(rung.comment?'':' empty');
+  var sp=document.createElement('span'); sp.className='cmt-span'; sp.textContent=rung.comment||'';
+  var inp=document.createElement('input'); inp.type='text'; inp.value=rung.comment||''; inp.placeholder='add comment...'; inp.maxLength=80;
+  div.appendChild(sp); div.appendChild(inp);
+  div.onclick=function(){ div.classList.add('editing'); div.classList.remove('empty'); inp.focus(); inp.select(); };
+  inp.onblur=function(){
+    rung.comment=inp.value.trim(); sp.textContent=rung.comment;
+    div.classList.remove('editing');
+    if(!rung.comment) div.classList.add('empty'); else div.classList.remove('empty');
+  };
+  inp.onkeydown=function(e){ if(e.key==='Enter'||e.key==='Escape') inp.blur(); e.stopPropagation(); };
+  return div;
+}
+
+function mkBodyEl(rung){
+  var body=document.createElement('div'); body.className='rung-body';
+
+  rung.paths.forEach(function(path,pi){
+    var row=document.createElement('div');
+    row.className='rung-row'+(pi>0?' parallel':'');
+    row.dataset.rungId  = rung.id;   // for updateVisualState() targeting
+    row.dataset.pathIdx = pi;
+
+    // Animated flow particle — moved by CSS when .energized is toggled
+    var flowEl=document.createElement('div'); flowEl.className='wire-flow';
+    row.appendChild(flowEl);
+
+    var cz=document.createElement('div'); cz.className='cell-zone';
+
+    path.forEach(function(elem,ci){
+      if(elem){
+        if(elem.type==='BLOCK'){
+          cz.appendChild(mkBlockCell(rung.id,pi,ci,elem));
+        } else if(elem.type==='CMP'){
+          cz.appendChild(mkCmpCell(rung.id,pi,ci,elem));
+        } else {
+          cz.appendChild(mkContactCell(rung.id,pi,ci,elem));
+        }
+      }
+    });
+    cz.appendChild(mkEmptyCell(rung.id,pi,path.length));
+
+    row.appendChild(cz);
+
+    /* branch bar for rows beyond first */
+    if(pi>0||rung.paths.length>1){
+      var bb=document.createElement('div'); bb.className='branch-bar';
+      var lbl=document.createElement('span'); lbl.className='branch-lbl'; lbl.textContent='Branch '+(pi+1);
+      var db=document.createElement('button'); db.className='branch-btn branch-del'; db.textContent='x Remove';
+      (function(rId,pIdx){ db.onclick=function(e){ e.stopPropagation(); delPath(rId,pIdx); }; })(rung.id,pi);
+      bb.appendChild(lbl); bb.appendChild(db); row.appendChild(bb);
+    }
+
+    body.appendChild(row);
+  });
+
+  /* add branch button */
+  var abr=document.createElement('div'); abr.style.cssText='padding:2px 8px 4px;';
+  var abb=document.createElement('button'); abb.className='branch-btn';
+  abb.textContent='|| Add parallel branch (OR)';
+  (function(rid){ abb.onclick=function(e){ e.stopPropagation(); addPath(rid); }; })(rung.id);
+  abr.appendChild(abb); body.appendChild(abr);
+
+  return body;
+}
+
+/* ── Block cell renderer (TON, TOF, CTU, CTD, etc.) ─────────
+   elem = { type:'BLOCK', blockType:'TON'|'TOF'|'CTU'|'CTD',
+            id:'T0', preset:1000 }
+   The block renders as an IEC-style box with IN/PT on the left
+   and Q/ET on the right, inline in the path.
+   The power-rail wire passes through the cell (::before/::after
+   pseudo-elements add connector stubs in CSS).                  */
+function mkBlockCell(rId, pi, ci, elem){
+  var div=document.createElement('div');
+  div.className='cell blk';
+  div.title=elem.blockType+' '+elem.id;
+  div.dataset.blockId=elem.id;         // used by updateVisualState()
+  div.dataset.blockType=elem.blockType;
+
+  // Title bar
+  var title=document.createElement('div');
+  title.className='blk-title';
+  title.textContent=elem.blockType;
+  div.appendChild(title);
+
+  // Body: left ports | right ports
+  var body=document.createElement('div'); body.className='blk-body';
+
+  // Left ports — block type determines port names
+  var portDefs=_blockPortDefs(elem.blockType);
+  var lCol=document.createElement('div'); lCol.className='blk-ports-l';
+  portDefs.left.forEach(function(p){
+    var pEl=document.createElement('div');
+    pEl.className='blk-port'+(p.main?' main':'');
+    var pn=p.name;
+    if(elem.blockType==='CTU' && p.name==='R'  && _hasCoil(elem.id,'RESET')){ pn='R ●';  pEl.classList.add('wired'); }
+    if(elem.blockType==='CTD' && p.name==='LD' && _hasCoil(elem.id,'LOAD')){  pn='LD ●'; pEl.classList.add('wired'); }
+    pEl.textContent=pn+(p.value!==undefined?'\n'+p.value:'');
+    lCol.appendChild(pEl);
+  });
+
+  var rCol=document.createElement('div'); rCol.className='blk-ports-r';
+  portDefs.right.forEach(function(p){
+    var pEl=document.createElement('div');
+    pEl.className='blk-port'+(p.main?' main':'');
+    pEl.textContent=p.name;
+    rCol.appendChild(pEl);
+  });
+
+  body.appendChild(lCol); body.appendChild(rCol);
+  div.appendChild(body);
+
+  // Block ID + preset label
+  var idEl=document.createElement('div'); idEl.className='blk-id';
+  idEl.textContent=elem.id+(elem.preset?'\n'+elem.preset+(elem.blockType.startsWith('C')?'':' ms'):'');
+  div.appendChild(idEl);
+
+  // Live value display (CV for counters, ET for timers) — updated by updateVisualState()
+  var liveEl=document.createElement('div'); liveEl.className='blk-live';
+  liveEl.textContent='';   // populated by debug poll when active
+  div.appendChild(liveEl);
+
+  // Delete button
+  var del=document.createElement('div'); del.className='c-del'; del.textContent='x';
+  del.title='Delete';
+  (function(a,b,c){ del.onclick=function(e){ e.stopPropagation(); delElem(a,b,c); }; })(rId,pi,ci);
+  div.appendChild(del);
+
+  // Click to edit block parameters
+  (function(a,b,c,el){
+    div.onclick=function(e){ if(e.target===del) return; openBlockModal(a,b,c,el); };
+  })(rId,pi,ci,elem);
+
+  // Drag
+  div.draggable=true;
+  div.ondragstart=function(e){
+    e.dataTransfer.setData('cell-src',JSON.stringify({rId:rId,pi:pi,ci:ci,elem:elem}));
+    e.dataTransfer.effectAllowed='move';
+  };
+  return div;
+}
+
+/* Port definitions per block type — returns { left:[{name,main,value?}], right:[...] } */
+function _blockPortDefs(blockType){
+  switch(blockType){
+    case 'TON': case 'TOF': case 'TP':
+      return { left: [{name:'IN',main:true},{name:'PT',main:false}],
+               right:[{name:'Q',main:true},{name:'ET',main:false}] };
+    case 'BLINK':
+      return { left: [{name:'EN',main:true},{name:'T',main:false}],
+               right:[{name:'Q',main:true}] };
+    case 'CTU':
+      return { left: [{name:'CU',main:true},{name:'R',main:false},{name:'PV',main:false}],
+               right:[{name:'Q',main:true},{name:'CV',main:false}] };
+    case 'CTD':
+      return { left: [{name:'CD',main:true},{name:'LD',main:false},{name:'PV',main:false}],
+               right:[{name:'Q',main:true},{name:'CV',main:false}] };
+    default:
+      return { left:[{name:'IN',main:true}], right:[{name:'Q',main:true}] };
+  }
+}
+
+function mkContactCell(rId,pi,ci,elem){
+  var isEdge=(elem.type==='EDGE');
+  var nc=(elem.negated===true);
+  var div=document.createElement('div');
+  div.className='cell '+(isEdge?'edge':(nc?'nc':'no'));
+  div.title=isEdge?((elem.edge==='N'?'Falling edge [N] ':'Rising edge [P] ')+elem.var):((nc?'NC':'NO')+' '+elem.var);
+  div.dataset.var=elem.var;   // used by updateVisualState()
+
+  var sym=document.createElement('div'); sym.className='c-sym';
+  sym.textContent=isEdge?('|'+(nc?'/':'')+(elem.edge==='N'?'N':'P')+'|'):(nc?'|/|':'| |');
+  var addr=document.createElement('div'); addr.className='c-addr'; addr.textContent=elem.var||'?';
+  var typ=document.createElement('div');  typ.className='c-type';
+  typ.textContent=isEdge?(elem.edge==='N'?'FALLING':'RISING'):(nc?'NC':'NO');
+  var del=document.createElement('div');  del.className='c-del'; del.textContent='x';
+  del.title='Delete';
+  (function(a,b,c){ del.onclick=function(e){ e.stopPropagation(); delElem(a,b,c); }; })(rId,pi,ci);
+
+  div.appendChild(sym); div.appendChild(addr); div.appendChild(typ); div.appendChild(del);
+
+  /* click to edit */
+  (function(a,b,c,el){ div.onclick=function(e){ if(e.target===del) return; openContModal(a,b,c,el); }; })(rId,pi,ci,elem);
+
+  /* drag cell */
+  div.draggable=true;
+  div.ondragstart=function(e){
+    e.dataTransfer.setData('cell-src',JSON.stringify({rId:rId,pi:pi,ci:ci,elem:elem}));
+    e.dataTransfer.effectAllowed='move';
+  };
+  return div;
+}
+
+function mkEmptyCell(rId,pi,ci){
+  var div=document.createElement('div'); div.className='cell empty';
+  div.title='Click to insert, or drag from palette';
+  var ph=document.createElement('div');
+  ph.style.cssText='font-family:var(--font-mono);font-size:12px;color:var(--border2);';
+  ph.textContent='+'; div.appendChild(ph);
+
+  div.onclick=function(){ placeTool(selTool,rId,pi,ci); };
+
+  div.ondragover =function(e){ e.preventDefault(); div.classList.add('drop-tgt'); };
+  div.ondragleave=function(){  div.classList.remove('drop-tgt'); };
+  div.ondrop=function(e){
+    e.preventDefault(); div.classList.remove('drop-tgt');
+    var pt=e.dataTransfer.getData('pal-type');
+    var cs=e.dataTransfer.getData('cell-src');
+    if(pt){
+      placeTool(pt,rId,pi,ci);
+    } else if(cs){
+      var src=JSON.parse(cs);
+      var elem=src.elem;
+      delElem(src.rId,src.pi,src.ci);
+      setTimeout(function(){ setElem(rId,pi,ci,elem); },0);
+    }
+  };
+  return div;
+}
+
+function mkCoilZone(rung){
+  var div=document.createElement('div'); div.className='coil-zone';
+
+  rung.outputs.forEach(function(coil,ci){
+    var isPwm=(coil.type==='PWM');
+    var isC=!isPwm && /^C/i.test(coil.var||'');
+    var cc=document.createElement('div');
+    cc.className='coil-cell'+(isPwm?' pwm-c':coil.mode==='LOAD'?' ld-c':coil.mode==='SET'?' set-c':coil.mode==='RESET'?' rst-c':'');
+    cc.title=isPwm?('PWM'+((coil.out|0)+1)):(coil.mode+' '+coil.var);
+    cc.dataset.var=isPwm?'':coil.var;   // used by updateVisualState()
+
+    var syms={NORMAL:'( )',SET:'(S)',RESET:'(R)',LOAD:'(LD)'};
+    var sym=document.createElement('div');  sym.className='co-sym';  sym.textContent=isPwm?'(PWM)':(syms[coil.mode]||'( )');
+    var addr=document.createElement('div'); addr.className='co-addr'; addr.textContent=isPwm?('PWM'+((coil.out|0)+1)):(coil.var||'?');
+    var mode=document.createElement('div'); mode.className='co-mode';
+    var caption=coil.mode||'NORMAL';
+    if(isPwm) caption='ON = 4095';
+    else if(isC && coil.mode==='RESET') caption='RESET (CTU R)';
+    else if(isC && coil.mode==='LOAD')  caption='LOAD (CTD LD)';
+    else if(coil.mode==='SET' || coil.mode==='RESET') caption=coil.mode+(coil.dom==='R'?' · RS (R wins)':' · SR (S wins)');
+    mode.textContent=caption;
+    var del=document.createElement('div');  del.className='c-del';    del.textContent='x';
+    (function(rId,i){ del.onclick=function(e){ e.stopPropagation(); delCoil(rId,i); }; })(rung.id,ci);
+
+    cc.appendChild(sym); cc.appendChild(addr); cc.appendChild(mode); cc.appendChild(del);
+    (function(rId,c,i){ cc.onclick=function(e){ if(e.target===del) return; if(c.type==='PWM') openPwmCoilModal(rId,c,i); else openCoilModal(rId,c,i); }; })(rung.id,coil,ci);
+    div.appendChild(cc);
+  });
+
+  var ab=document.createElement('button'); ab.className='add-coil-btn'; ab.textContent='+ coil';
+  (function(rId){ ab.onclick=function(e){ e.stopPropagation(); openCoilModal(rId,null,null); }; })(rung.id);
+  div.appendChild(ab);
+  return div;
+}
+
+function mkRungCtrl(rung){
+  var div=document.createElement('div'); div.className='rung-ctrl';
+  function btn(txt,ttl,cls,fn){
+    var b=document.createElement('button'); b.className='rctl-btn'+(cls?' '+cls:'');
+    b.textContent=txt; b.title=ttl;
+    b.onclick=function(e){ e.stopPropagation(); fn(); };
+    div.appendChild(b);
+  }
+  btn('^','Move up',  'mv',   function(){ moveRung(rung.id,-1); });
+  btn('v','Move down','mv',   function(){ moveRung(rung.id, 1); });
+  btn('+','Add after','',    function(){ addRung(rung.id); });
+  btn('x','Delete',  'dng',  function(){ deleteRung(rung.id); });
+  return div;
+}
+
+/* ================================================================ MODAL ================================================================ */
+
+/* Block tool check helper */
+function _isBlockTool(t){ return t==='TON'||t==='TOF'||t==='TP'||t==='BLINK'||t==='CTU'||t==='CTD'; }
+
+function openContModal(rId,pi,ci,existing){
+  // If the selected tool is a block type, redirect to block modal
+  if(_isBlockTool(selTool) && !existing){ openBlockModal(rId,pi,ci,null); return; }
+  var edge=null;
+  if(existing && existing.type==='EDGE') edge=existing.edge==='N'?'N':'P';
+  else if(!existing && (selTool==='P'||selTool==='N')) edge=selTool;
+  var nc=edge ? !!(existing&&existing.negated) : ((selTool==='NC')||(existing&&existing.negated));
+  _ctx={ type:'contact', rId:rId, pi:pi, ci:ci, negated:nc, edge:edge };
+  document.getElementById('mdl-title').textContent=edge?(edge==='P'?'Rising edge [P]':'Falling edge [N]'):(nc?'NC Contact':'NO Contact');
+  document.getElementById('mdl-lbl').textContent=edge?'Signal (edge detected on this address)':'Address (e.g. X0, M3, T0)';
+  document.getElementById('mdl-hint').textContent=edge
+    ? 'True for ONE scan when the signal goes '+(edge==='P'?'0→1':'1→0')+'. X, Y, M, or a block Q (T0, C0).'
+    : 'X=input  Y=output  M=marker  T0/C0 = Q output of a timer/counter block (use NC for NOT Q)';
+  document.getElementById('mdl-mode-sec').style.display='none';
+  var inp=document.getElementById('mdl-addr');
+  inp.value=existing?(existing.var||''):'X0';
+  showModal();
+}
+
+/* Block modal — shared for TON/TOF/CTU/CTD */
+var _blockCtx=null;
+function openBlockModal(rId,pi,ci,existing){
+  var bt=existing?existing.blockType:selTool;
+  var defaultId={TON:'T0',TOF:'T1',TP:'T2',BLINK:'T3',CTU:'C0',CTD:'C1'}[bt]||'T0';
+  var isCounter=(bt==='CTU'||bt==='CTD');
+  var defaultPreset=isCounter?10:(bt==='BLINK'?500:1000); // counters: count, timers: ms
+  _blockCtx={ rId:rId, pi:pi, ci:ci, blockType:bt };
+  document.getElementById('blk-modal-title').textContent=bt;
+  document.getElementById('blk-modal-id').value=existing?(existing.id||defaultId):defaultId;
+  document.getElementById('blk-modal-preset').value=existing?(existing.preset||defaultPreset):defaultPreset;
+  document.getElementById('blk-modal-preset-lbl').textContent=isCounter?'Preset (count)':(bt==='BLINK'?'Period (ms)':'Preset (ms)');
+  document.getElementById('blk-modal').classList.add('show');
+  setTimeout(function(){ document.getElementById('blk-modal-id').focus(); document.getElementById('blk-modal-id').select(); },80);
+}
+
+function closeBlockModal(){
+  document.getElementById('blk-modal').classList.remove('show');
+  _blockCtx=null;
+}
+
+function confirmBlockModal(){
+  var id=document.getElementById('blk-modal-id').value.trim().toUpperCase();
+  var presetRaw=String(document.getElementById('blk-modal-preset').value).trim();
+  var preset=parseInt(presetRaw,10)||0;
+  if(!id||!_blockCtx){ closeBlockModal(); return; }
+  var bt=_blockCtx.blockType;
+  var expectedArea=(bt==='CTU'||bt==='CTD')?'C':'T';
+  var bad=!new RegExp('^'+expectedArea+'\\d+$').test(id) || preset<0 || (presetRaw!=='' && !/^\d+$/.test(presetRaw));
+  if(bad){
+    var inp=document.getElementById('blk-modal-id');
+    inp.style.borderColor='var(--red)';
+    setTimeout(function(){ inp.style.borderColor=''; },700);
+    return;
+  }
+  var ctx=_blockCtx; closeBlockModal();
+  var elem={ type:'BLOCK', blockType:bt, id:id, preset:preset };
+  setElem(ctx.rId,ctx.pi,ctx.ci,elem);
+  setStatus('Block '+bt+' '+id+' (preset='+preset+')');
+  updateAST(ctx.rId);
+}
+
+document.getElementById('blk-modal-id').addEventListener('keydown',function(e){
+  if(e.key==='Enter') confirmBlockModal();
+  if(e.key==='Escape') closeBlockModal();
+});
+function openCoilModal(rId,existing,ci,presetMode,presetVar){
+  _ctx={ type:'coil', rId:rId, ci:ci };
+  _coilMode=(existing&&existing.mode)||presetMode||'NORMAL';
+  _coilPrio=(existing&&existing.dom==='R')?'R':'S';
+  document.getElementById('mdl-title').textContent='Output Coil';
+  document.getElementById('mdl-lbl').textContent='Address (e.g. Y0, M3, C0)';
+  document.getElementById('mdl-hint').textContent='Y=output  M=marker (SET/RESET latch)  C=counter (RESET for CTU, LOAD for CTD)';
+  document.getElementById('mdl-mode-sec').style.display='block';
+  selMode(_coilMode); selPrio(_coilPrio);
+  var inp=document.getElementById('mdl-addr');
+  inp.value=existing?(existing.var||'Y0'):(presetVar||'Y0');
+  showModal();
+}
+
+function showModal(){
+  document.getElementById('elem-modal').classList.add('show');
+  var inp=document.getElementById('mdl-addr');
+  setTimeout(function(){ inp.focus(); inp.select(); },80);
+}
+
+function closeModal(){
+  document.getElementById('elem-modal').classList.remove('show'); _ctx=null;
+}
+
+function selMode(m){
+  _coilMode=m;
+  ['NORMAL','SET','RESET','LOAD'].forEach(function(id){
+    var el=document.getElementById('mode-'+id); if(el) el.classList.toggle('sel',id===m);
+  });
+  var ps=document.getElementById('mdl-prio-sec');
+  if(ps) ps.style.display=(m==='SET'||m==='RESET')?'block':'none';
+}
+function selPrio(p){
+  _coilPrio=p;
+  ['S','R'].forEach(function(id){ var el=document.getElementById('prio-'+id); if(el) el.classList.toggle('sel',id===p); });
+}
+
+function confirmModal(){
+  var addr=document.getElementById('mdl-addr').value.trim().toUpperCase();
+  if(!addr||!_ctx){ closeModal(); return; }
+  if(!/^[XYMTC]\d+$/i.test(addr)){
+    var inp=document.getElementById('mdl-addr');
+    inp.style.borderColor='var(--red)';
+    setTimeout(function(){ inp.style.borderColor=''; },700);
+    return;
+  }
+  var ctx=_ctx; closeModal();
+  if(ctx.type==='contact'){
+    if(ctx.edge){
+      var ee={ type:'EDGE', var:addr, edge:ctx.edge };
+      if(ctx.negated) ee.negated=true;
+      setElem(ctx.rId,ctx.pi,ctx.ci,ee);
+      setStatus('Placed edge ['+ctx.edge+'] '+addr);
+    } else {
+      var nc=(selTool==='NC')||ctx.negated;
+      setElem(ctx.rId,ctx.pi,ctx.ci,{ type:'CONTACT', var:addr, negated:nc });
+      setStatus('Placed '+(nc?'NC':'NO')+' '+addr);
+    }
+  } else {
+    var coil={ type:'COIL', var:addr, mode:_coilMode };
+    // Priority only applies to SET/RESET latches (not counters); stored only when RS
+    var domVar=null;
+    if((_coilMode==='SET'||_coilMode==='RESET') && !/^C/.test(addr)){
+      if(_coilPrio==='R') coil.dom='R';
+      domVar=addr;
+    }
+    if(ctx.ci!==null&&ctx.ci!==undefined){
+      var r=getRung(ctx.rId); if(r) r.outputs[ctx.ci]=coil;
+    } else { var r2=getRung(ctx.rId); if(r2) r2.outputs.push(coil); }
+    // every SET/RESET coil of the same address must share the priority
+    if(domVar){
+      rungs.forEach(function(rr){ (rr.outputs||[]).forEach(function(c){
+        if(c.type!=='PWM' && String(c.var||'').toUpperCase()===domVar && (c.mode==='SET'||c.mode==='RESET')){
+          if(_coilPrio==='R') c.dom='R'; else delete c.dom;
+        } }); });
+    }
+    renderAll();
+    setStatus('Coil '+_coilMode+' '+addr+(domVar?(_coilPrio==='R'?' (RS: reset wins)':' (SR: set wins)'):''));
+  }
+  updateAST(ctx.rId);
+}
+
+document.getElementById('mdl-addr').addEventListener('keydown',function(e){
+  if(e.key==='Enter') confirmModal();
+  if(e.key==='Escape') closeModal();
+});
+
+/* ================================================================ PALETTE DRAG ================================================================ */
+function palDrag(e,type){ e.dataTransfer.setData('pal-type',type); e.dataTransfer.effectAllowed='copy'; }
+
+/* ================================================================ AST PREVIEW ================================================================ */
+function updateAST(rid){
+  var el=document.getElementById('ast-preview');
+  if(!rid){ el.innerHTML='<span style="color:var(--text-dim)">Select a rung.</span>'; return; }
+  var r=getRung(rid); if(!r) return;
+  var errs=LadderAST.validateRung(r);
+  if(errs.length){
+    el.innerHTML='<span class="ast-err">! '+errs.length+' error(s)</span><br>'+
+      errs.map(function(e){ return '<span class="ast-err">'+esc(e)+'</span>'; }).join('<br>');
+    return;
+  }
+  if(r.kind==='NUM'){
+    var txt=(r.chain||[]).map(function(b){ return esc(String(b.fn).toUpperCase()+(b.id?' '+b.id:'')+(String(b.fn).toUpperCase()==='PWM'?' PWM'+((b.out|0)+1):'')); }).join(' → ');
+    el.innerHTML='<span class="ast-ok">Analog chain</span><br><span style="color:var(--accent2)">'+txt+'</span>';
+    return;
+  }
+  var ast=LadderAST.rungToAST(r);
+  var expr=astStr(ast.expr);
+  var outs=ast.outputs.map(function(c){
+    if(c.type==='PWM') return 'PWM'+((c.out|0)+1)+'[ON/OFF]';
+    return esc(c.var)+'['+esc(c.mode)+(c.dom==='R'?'/RS':'')+']';
+  }).join(', ');
+  el.innerHTML='<span class="ast-ok">Valid AST</span><br>'+
+    '<span style="color:var(--text-dim)">Expr: </span>'+expr+'<br>'+
+    '<span style="color:var(--text-dim)">Outs: </span><span style="color:var(--accent)">'+(outs||'none')+'</span>';
+}
+
+function astStr(n){
+  if(!n) return '0';
+  switch(n.op){
+    case 'VAR':  return '<span style="color:var(--text)">'+esc(n.var)+'</span>';
+    case 'NOT':  return '!(' +astStr(n.arg)+')';
+    case 'AND':  return '('+astStr(n.left)+' &amp; '+astStr(n.right)+')';
+    case 'OR':   return '('+astStr(n.left)+' | '+astStr(n.right)+')';
+    case 'TRUE': return '<span style="color:var(--green)">1</span>';
+    case 'FALSE':return '<span style="color:var(--red)">0</span>';
+    case 'BLOCK':return '<span style="color:var(--accent2)">['+esc(n.blockType)+':'+esc(n.var)+']</span>';
+    case 'EDGE': return '<span style="color:var(--yellow)">['+esc(n.edge)+' '+esc(n.var)+']</span>';
+    case 'CMP':  return '<span style="color:#b478ff">['+esc(n.src)+' '+esc(n.cmpOp)+' '+esc(n.src2!==undefined?n.src2:n.value)+']</span>';
+    default:     return esc(n.op);
+  }
+}
+
+/* ================================================================ COMPILE & SEND ================================================================ */
+/* Compila y valida SIN efectos de interfaz ni red: lo usan «Guardar en PLC» y «Exportar proyecto»,
+   de modo que ambos pasan por el mismo compilador y las mismas validaciones. */
+function buildLadderEnvelope(){
+  // ── Step 1: UI validation (LadderAST paths model) ─────────────
+  var allErrs=[];
+  LadderAST.validateProgram(rungs).forEach(function(m){ if(m.level==='error') allErrs.push('Rung '+(m.rung+1)+': '+m.msg); });
+  rungs.forEach(function(r,ri){
+    LadderAST.validateRung(r).forEach(function(e){
+      allErrs.push('Rung '+(ri+1)+': '+e);
+    });
+  });
+  if(allErrs.length) return { ok:false, stage:'validate', errors:allErrs, message:allErrs[0] };
+
+  // ── Step 2: Compilation ───────────────────────────────────────
+  // ÚNICA ruta: PlcCompiler.compileLadder (modelo de rutas "paths"), la misma para programas nuevos y antiguos,
+  // con o sin bloques. Ver tests/t_e4_route.js.
+  var ir;
+  var usedModel = 'ladder_paths';
+  var ladderSrc = {
+    rungs: rungs.map(function(rung){
+      var o = { id:rung.id, comment:rung.comment||'', paths:rung.paths, outputs:rung.outputs };
+      if (rung.kind === 'NUM') { o.kind = 'NUM'; o.chain = rung.chain; }
+      return o;
+    })
+  };
+  try {
+    ir = PlcCompiler.compileLadder(ladderSrc);
+  } catch(e) {
+    return { ok:false, stage:'compile', message:e.message };
+  }
+
+  // ── Step 3: IR validation ──────────────────────────────────────
+  var validation = (typeof PlcSymbolTable !== 'undefined')
+    ? PlcSymbolTable.validate(ir.program.nodes)
+    : { ok:true, errors:[], warnings:[] };
+
+  if(!validation.ok){
+    var errMsg = validation.errors.map(function(e){ return e.code+': '+e.message; }).join('\n');
+    return { ok:false, stage:'ir', message:errMsg, errors:validation.errors };
+  }
+  if(validation.warnings.length > 0) console.warn('[compile] IR warnings:', validation.warnings);
+  var irWarn = (ir.meta && ir.meta.warnings) ? ir.meta.warnings.filter(function(w){ return w.code !== 'VAR_READ_NOT_WRITTEN' || true; }) : [];
+  if(irWarn.length) console.warn('[compile] Ladder warnings:', irWarn);
+
+  // ── Step 4: Synthesise drawflow for the runtime ────────────────
+  var drawflowObj;
+  try {
+    drawflowObj = PlcCompiler.irToDrawflow(ir.program.nodes);
+  } catch(e) {
+    return { ok:false, stage:'drawflow', message:e.message };
+  }
+
+  // ── Step 5: Build program envelope ────────────────────────────
+  var symbolTable = (ir.meta && ir.meta.symbolTable) || null;
+  var nc = ir.program.nodes.length;
+
+  // Keep the paths-format rungs in 'ladder' field for UI restore.
+  // If AST model was used, also store the AST program for future tools.
+  var ladderField = {
+    formatVersion: LadderAST.FORMAT_VERSION,
+    rungs: rungs.map(function(rung){
+      var o = { id:rung.id, comment:rung.comment||'', paths:rung.paths, outputs:rung.outputs };
+      if (rung.kind === 'NUM') { o.kind = 'NUM'; o.chain = rung.chain; }
+      return o;
+    })
+  };
+
+  // ir.order[] is hoisted to the envelope root as informative data only.
+  // The runtime (plc_runtime.cpp) does NOT read it: parseProgram() rebuilds
+  // its own deterministic execution order from drawflow.Home.data
+  // (plcBuildExecOrder), identical to PlcCompiler's _topo and to the simulator.
+  //
+  // NOTE ON drawflow FIELD:
+  // drawflowObj here comes from irToDrawflow() — it has id/name/data/outputs
+  // but lacks the 'class','html','typenode','inputs' fields that Drawflow.import()
+  // needs for the visual editor. This field is FOR THE ESP32 RUNTIME ONLY
+  // (parseProgram reads drawflow.Home.data).  The FBD editor (program.html)
+  // will detect source:'ladder' and skip import — no crash.
+  var envelope = {
+    format:       'plc_program',
+    version:      3,
+    source:       'ladder',
+    compiledWith: usedModel,
+    ladder:       ladderField,
+    ir:           ir,
+    order:        ir.order,            // ← hoisted for parseProgram()
+    drawflow:     drawflowObj.drawflow, // ← runtime only (ESP32 parseProgram)
+    symbolTable:  symbolTable
+  };
+
+  return { ok:true, envelope:envelope, ir:ir, nc:nc, usedModel:usedModel, irWarn:irWarn, symbolTable:symbolTable, ladder:ladderField };
+}
+
+function compileAndSend(){
+  if (_protect) {
+    csStatus('err','COMPILE bloqueado: el programa '+_protect.label+' guardado no se pudo convertir');
+    setStatus('Se conserva el programa guardado. Usá "Empezar un Ladder nuevo" en el aviso para reemplazarlo.');
+    showConvBanner('warn','COMPILE bloqueado para no pisar el programa '+_protect.label+' guardado.',_protect.reasons,
+      [{ label:'Empezar un Ladder nuevo (reemplazará el programa guardado al compilar)', fn:function(){ _protect=null; hideConvBanner(); csStatus('ok','Ready'); } }]);
+    return;
+  }
+  var bld = buildLadderEnvelope();
+  renderAll();
+  if(!bld.ok){
+    if(bld.stage==='validate'){ csStatus('err',bld.errors.length+' error(s) — fix before compile'); setStatus(bld.message); }
+    else if(bld.stage==='compile'){ csStatus('err','Compile: '+bld.message); setStatus('Error: '+bld.message); }
+    else if(bld.stage==='ir'){ alert('Errores IR (guardar bloqueado):\n\n'+bld.message); csStatus('err',bld.errors.length+' critical error(s)'); }
+    else { csStatus('err','Drawflow synthesis: '+bld.message); setStatus('Error: '+bld.message); }
+    return;
+  }
+  var envelope=bld.envelope, ir=bld.ir, nc=bld.nc, usedModel=bld.usedModel, irWarn=bld.irWarn, symbolTable=bld.symbolTable;
+
+  // Un proyecto recién importado NO se guarda en el PLC sin confirmación explícita.
+  if (window.__projImportPending) {
+    if (!confirm('Vas a REEMPLAZAR el programa guardado en '+PlcProject.targetName()+' por el proyecto importado «'+window.__projImportPending.name+'».\n\n¿Continuar?')) {
+      projMsg('warn','Guardado cancelado. El programa que estaba en '+PlcProject.targetName()+' no se modificó.');
+      csStatus('warn','Guardado cancelado'); setStatus('Cancelado — el PLC no se modificó');
+      return;
+    }
+  }
+
+  // ── Step 6: POST to /save, reload runtime ─────────────────────
+  setStatus('Compiled '+nc+' nodes ('+usedModel+') — sending...');
+  csStatus('warn','Sending...');
+
+  PlcApi.saveProgram(envelope)
+    .then(function(){ return PlcApi.plcReload(); })
+    .then(function(){
+      refreshBadge();
+      window.__projImportPending = null;
+      projMsg('ok', PlcProject.isEmbedded() ? 'Programa compilado, validado y guardado en el PLC ('+nc+' nodos).' : 'Programa compilado y validado ('+nc+' nodos). Enviado al PLC SIMULADO: no se guardó en ningún hardware.');
+      var symCount = symbolTable ? symbolTable.symbols.length : 0;
+      csStatus(irWarn.length?'warn':'ok',nc+' nodes | '+symCount+' symbols | '+usedModel+(irWarn.length?' | '+irWarn.length+' warning(s): '+irWarn[0].message:''));
+      setStatus('Loaded — '+nc+' nodes via '+usedModel);
+      document.getElementById('cs-nc').textContent=nc+' nodes';
+      flash();
+      try{ sessionStorage.setItem('ld_pro_v2',JSON.stringify(rungs)); }catch(e){}
+      window.__lastEnvelope = envelope;
+      if(symbolTable) console.info('[ladder] Symbol table:', symbolTable.stats);
+    })
+    .catch(function(e){
+      csStatus('err','Send: '+e.message);
+      setStatus('Error: '+e.message);
+    });
+}
+
+/* ── Convert paths/outputs rung model → LadderProgram AST ──────────
+   Translates the ladder.html internal rung model (paths format)
+   into the new LadderProgram AST format for compileLadderAST().
+   This is a pure data transformation — no IR is generated here.  */
+function _rungs_to_ladder_ast(rungs) {
+  var LP = LadderProgram;
+
+  function elemToExpr(elem) {
+    if (!elem) return null;
+    if (elem.type === 'CONTACT') {
+      return LP.contact(elem.var, elem.negated ? 'NC' : 'NO');
+    }
+    if (elem.type !== 'CONTACT' && elem.type !== 'BLOCK') {
+      throw new Error('The AST compiler cannot represent element ' + elem.type + ' (use the paths compiler)');
+    }
+    if (elem.type === 'BLOCK') {
+      // A BLOCK in a path conditions the rung — treat the block's Q output
+      // as a contact on its address variable (e.g. T0, C0).
+      // The block node itself is compiled by compileLadder() via the BLOCK branch.
+      // For compileLadderAST() we model it as a contact on the block's ID variable.
+      return LP.contact(elem.id, 'NO');
+    }
+    return null;
+  }
+
+  function pathToExpr(path) {
+    var terms = (path || []).map(elemToExpr).filter(Boolean);
+    if (terms.length === 0) return null;
+    if (terms.length === 1) return terms[0];
+    // Two-arg and() works; for N>2 pass array
+    return LP.and(terms);
+  }
+
+  function rungToASTRung(rung) {
+    var pathExprs = (rung.paths || [])
+      .map(pathToExpr)
+      .filter(Boolean);
+
+    if (pathExprs.length === 0) return null;
+
+    var condition;
+    if (pathExprs.length === 1) {
+      condition = pathExprs[0];
+    } else {
+      condition = LP.or(pathExprs);
+    }
+
+    var actions = (rung.outputs || []).map(function(coil) {
+      var type = 'coil';
+      if (coil.mode === 'SET')   type = 'set';
+      if (coil.mode === 'RESET') type = 'reset';
+      return LP.action(type, coil.var);
+    }).filter(Boolean);
+
+    if (actions.length === 0) return null;
+    return LP.makeRung(rung.id || String(Math.random()), condition, actions, {
+      label:   rung.comment || '',
+      comment: rung.comment || ''
+    });
+  }
+
+  var astRungs = rungs.map(rungToASTRung).filter(Boolean);
+  if (astRungs.length === 0) throw new Error('No valid rungs for AST conversion');
+  return LP.makeProgram(astRungs);
+}
+
+/* ================================================================ PLC + UI HELPERS ================================================================ */
+function plcRun()  { PlcApi.plcRun().then(refreshBadge); }
+function plcStop() { PlcApi.plcStop().then(refreshBadge); }
+
+function refreshBadge(){
+  PlcApi.getStatus().then(function(d){
+    var b=document.getElementById('mode-badge');
+    b.textContent=d.mode||'STOP';
+    b.className='mode-badge '+(d.mode==='RUN'?'run':'stop');
+  }).catch(function(){});
+}
+
+function setStatus(msg){ document.getElementById('sb-status').textContent=msg; }
+function csStatus(type,msg){
+  document.getElementById('cs-dot').className='cs-dot '+type;
+  var m=document.getElementById('cs-msg'); m.className='cs-'+type; m.textContent=msg;
+}
+function flash(){
+  var el=document.querySelector('.ctrl-btn.save'); if(!el) return;
+  el.style.boxShadow='0 0 18px rgba(245,166,35,0.55)';
+  setTimeout(function(){ el.style.boxShadow=''; },800);
+}
+
+/* ================================================================ IMPORT / EXPORT / DRAFT ================================================================ */
+function saveDraft(){
+  try{ sessionStorage.setItem('ld_pro_v2',JSON.stringify(rungs)); setStatus('Draft saved'); }
+  catch(e){ setStatus('Draft save failed'); }
+}
+
+function loadDraft(){
+  try{
+    var d=sessionStorage.getItem('ld_pro_v2');
+    if(d){
+      var res=adoptProgram(JSON.parse(d));
+      if(res.ok){ renderAll(); setStatus('Draft restored'); return true; }
+    }
+  } catch(e){}
+  return false;
+}
+
+function clearAll(){
+  if(rungs.length&&!confirm('Clear all rungs?')) return;
+  rungs=[ createDefaultRung() ]; renderAll(); selRung(rungs[0].id); setStatus('Cleared — default rung created');
+}
+
+function exportJSON(){
+  var data=JSON.stringify({format:'ladder-pro',version:LadderAST.FORMAT_VERSION,source:'ladder',rungs:rungs},null,2);
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));
+  a.download='ladder_program.json'; a.click();
+  setStatus('Exported ladder_program.json');
+  return data;
+}
+
+function importJSON(inp){
+  var f=inp.files[0]; if(!f) return;
+  var rd=new FileReader();
+  rd.onload=function(e){ importText(e.target.result); inp.value=''; };
+  rd.readAsText(f);
+}
+/* Atomic import: the current program is only replaced if the file is valid. */
+function importText(text){
+  try{
+    var data=JSON.parse(text);
+    var before=rungs;
+    var res=adoptProgram(data);
+    if(!res.ok){ rungs=before; setStatus('Import error: '+res.notes.join(' ')); csStatus('err','Import failed — current program kept'); return false; }
+    _protect=null; hideConvBanner();
+    renderAll();
+    setStatus('Imported '+rungs.length+' rung(s)'+(res.notes.length?' — '+res.notes.join(' '):''));
+    csStatus(res.notes.length?'warn':'ok','Imported '+rungs.length+' rung(s)');
+    return true;
+  } catch(ex){ setStatus('Import error: '+ex.message); csStatus('err','Import failed — current program kept'); return false; }
+}
+
+
+/* ═══════════ Proyectos portables .plc ═══════════ */
+function projMsg(kind, text){
+  var el=document.getElementById('proj-msg'); if(!el) return;
+  el.className='proj-msg '+kind; el.textContent=text; el.style.display=text?'block':'none';
+}
+function projName(){ var el=document.getElementById('proj-name'); return PlcProject.sanitizeName(el?el.value:''); }
+function currentLadderField(){
+  return { formatVersion: LadderAST.FORMAT_VERSION, rungs: rungs.map(function(rung){
+    var o={ id:rung.id, comment:rung.comment||'', paths:rung.paths, outputs:rung.outputs };
+    if(rung.kind==='NUM'){ o.kind='NUM'; o.chain=rung.chain; }
+    return o;
+  }) };
+}
+function _ladderIsBlank(){
+  return rungs.every(function(r){
+    var np=(r.paths||[]).filter(function(p){ return Array.isArray(p)&&p.length; }).length;
+    return !np && !(r.outputs||[]).length && !(r.chain||[]).length;
+  });
+}
+
+/* Exportar: descarga un .plc con los renglones editables + el IR compilado (si compila). No toca el PLC. */
+function exportProject(){
+  if(_ladderIsBlank()){ projMsg('err','No hay nada que exportar: el programa Ladder está vacío.'); return null; }
+  var bld=buildLadderEnvelope();
+  var name=projName();
+  var proj=PlcProject.build({ name:name, editor:'ladder', ladder:bld.ok?bld.ladder:currentLadderField(), ir:bld.ok?bld.ir:null, origin:PlcProject.isEmbedded()?'esp32':'simulator' });
+  var text=PlcProject.serialize(proj), fname=PlcProject.fileNameFor(name);
+  PlcProject.download(fname,text);
+  projMsg(bld.ok?'ok':'warn','Proyecto exportado: '+fname+' ('+rungs.length+' renglones, '+text.length+' bytes).'+(bld.ok?'':'\nAviso: el programa aún no compila ('+bld.message+'); se exportó sin IR. Se podrá abrir y corregir.'));
+  return text;
+}
+
+/* Importar: leer → validar → confirmar → reconstruir el editor. Nunca toca el PLC: para guardar hay que pulsar «Guardar en PLC». */
+function importProject(inp){
+  var f=inp&&inp.files&&inp.files[0];
+  if(inp){ try{ inp.value=''; }catch(e){} }
+  if(!f) return Promise.resolve(false);
+  return PlcProject.readFile(f).then(function(text){ return importProjectText(text,f.name); })
+    .catch(function(e){ projMsg('err','No se pudo importar: '+e.message+'\nEl editor y el programa del PLC siguen sin cambios.'); return false; });
+}
+function importProjectText(text,fname){
+  var r=PlcProject.parse(text,{ladderAst:LadderAST});
+  if(!r.ok){ projMsg('err','No se pudo importar '+(fname||'el archivo')+':\n- '+r.errors.join('\n- ')+'\nEl editor y el programa del PLC siguen sin cambios.'); return false; }
+  var P=r.project, newRungs=null, notes=r.warnings.slice(), kind='ok', from='Ladder';
+  try{
+    if(P.editor==='ladder'){
+      var mig=LadderAST.migrateProgram({ ladder:P.diagram.ladder },uid);
+      if(!mig.rungs||!mig.rungs.length){ projMsg('err','No se pudo importar: '+(mig.notes[0]||'sin renglones')+'\nEl editor y el programa del PLC siguen sin cambios.'); return false; }
+      newRungs=mig.rungs; mig.notes.forEach(function(n){ notes.push(n); });
+    } else {
+      from='FBD';
+      var ir=PlcCompiler.compileProject(P.diagram.fbd,'fbd');
+      var v=(typeof PlcSymbolTable!=='undefined')?PlcSymbolTable.validate(ir.program.nodes):{ok:true,errors:[]};
+      if(!v.ok){ projMsg('err','El proyecto FBD «'+P.name+'» no es válido para el PLC:\n- '+v.errors.map(function(e){return e.code+': '+e.message;}).join('\n- ')+'\nEl editor y el programa del PLC siguen sin cambios.'); return false; }
+      var cv=convertIR(ir);
+      if(!cv.ok){ projMsg('err','El proyecto FBD «'+P.name+'» no se puede convertir a Ladder:\n- '+cv.reasons.join('\n- ')+'\nAbrilo en el editor FBD. El editor y el programa del PLC siguen sin cambios.'); return false; }
+      newRungs=cv.rungs.map(function(rr){ return LadderAST.migrateRung(rr,uid); });
+      notes.push('FBD convertido a Ladder'+(cv.verified?' (equivalencia verificada)':' (sin verificar)')+'.');
+      (cv.warnings||[]).forEach(function(w){ notes.push(String(w)); });
+    }
+  } catch(e){ projMsg('err','El proyecto no se pudo reconstruir: '+e.message+'\nEl editor y el programa del PLC siguen sin cambios.'); return false; }
+  if(!confirm('Importar el proyecto «'+P.name+'» ('+from+', '+newRungs.length+' renglones)?'+(_ladderIsBlank()?'':'\n\nEsto REEMPLAZA el programa abierto en el editor.')+'\nNo se guarda nada en el PLC hasta que presiones «Guardar en PLC».')){
+    projMsg('warn','Importación cancelada. Nada fue modificado.'); return false;
+  }
+  rungs=newRungs; _syncUid(); selRungId=null; _protect=null; hideConvBanner();
+  renderAll();
+  var nm=document.getElementById('proj-name'); if(nm) nm.value=P.name;
+  // Compilación equivalente: se recompila lo importado y se compara con el IR que trae el archivo.
+  var bld=buildLadderEnvelope();
+  if(!bld.ok){ kind='warn'; notes.push('El programa importado no compila todavía: '+bld.message); }
+  else if(P.ir && P.editor==='ladder'){
+    if(PlcProject.irKey(P.ir)===PlcProject.irKey(bld.ir)) notes.push('La compilación coincide con la del archivo.');
+    else { kind='warn'; notes.push('La compilación NO coincide con el IR del archivo (se usará siempre la recompilada).'); }
+  }
+  if(r.warnings.length) kind='warn';
+  window.__projImportPending={ name:P.name };
+  setStatus('Proyecto importado — falta Guardar en PLC'); csStatus('warn',rungs.length+' renglón(es) importados — sin guardar en el PLC');
+  projMsg(kind,'Proyecto «'+P.name+'» importado ('+rungs.length+' renglones).\n'+notes.join('\n')+'\nTodavía NO está guardado en '+PlcProject.targetName()+': presioná «Guardar en PLC» para validarlo y enviarlo.');
+  return true;
+}
+window.addEventListener('DOMContentLoaded',function(){
+  if(!PlcProject.isEmbedded()){
+    var sv=document.getElementById('btn-save-plc');
+    if(sv){ sv.innerHTML='&#x2B06; Guardar en PLC (simulado)'; sv.title='Simulador: envía el programa al PLC simulado, no a hardware'; }
+  }
+});
+
+/* ================================================================ MEMORY PANEL + CLOCK ================================================================ */
+var _mp=new MemoryPanel(document.getElementById('mem-mount'),{
+  pollMs:300, xCount:8, yCount:8, mCount:8, tCount:4, aCount:2
+});
+_mp.start();
+
+setInterval(function(){
+  document.getElementById('sb-time').textContent=new Date().toLocaleTimeString();
+},1000);
+
+/* ================================================================
+   DEBUG VISUAL EN TIEMPO REAL
+   ================================================================
+   Fuente de datos:
+     /api/memory → { X:[64 bool], Y:[64 bool], T:[32 bool],
+                     C:[32 bool], R:[32 int], ... }
+     /nodes      → { nodes:[{id,name,state,intValue,value,...}] }
+
+   Mapeo:
+     Contacto  elem.var='X0' → X[0], 'Y1' → Y[1], 'M3' → M[3]
+     Bobina    coil.var='Y0' → Y[0], 'M0' → M[0]
+     TON/TOF   elem.id='T0'  → buscar en nodes[] por name+address
+     CTU/CTD   elem.id='C0'  → buscar en nodes[] por name+address
+
+   No re-renderiza el DOM. Solo togglea .dbg-on y actualiza .blk-live.
+   ================================================================ */
+
+var _debugActive = false;
+var _debugTimer  = null;
+var _DEBUG_POLL_MS = 500;
+
+// Cache de nodos runtime: { 'ton:T0': {Q,ET}, 'ctu:C0': {Q,CV} }
+var _nodeCache = {};
+
+function toggleDebug(){
+  _debugActive = !_debugActive;
+  var badge = document.getElementById('dbg-badge');
+  if (_debugActive) {
+    badge.textContent = 'DEBUG ON';
+    badge.className   = 'dbg-badge on';
+    _debugStartPolling();
+  } else {
+    badge.textContent = 'DEBUG';
+    badge.className   = 'dbg-badge off';
+    _debugStopPolling();
+    _debugClearAll();
+  }
+}
+
+function _debugStartPolling(){
+  if (_debugTimer) return;
+  _debugPoll();   // immediate first poll
+  _debugTimer = setInterval(_debugPoll, _DEBUG_POLL_MS);
+}
+
+function _debugStopPolling(){
+  if (_debugTimer){ clearInterval(_debugTimer); _debugTimer = null; }
+}
+
+/* Fetch both endpoints in parallel — fail silently if PLC is offline */
+function _debugPoll(){
+  if (!_debugActive) return;
+  Promise.all([
+    PlcApi.getMemory().catch(function(){ return null; }),
+    PlcApi.getNodes().catch(function(){ return null; })
+  ]).then(function(results){
+    var mem   = results[0];
+    var nodes = results[1];
+    if (!mem && !nodes) return;  // PLC offline
+
+    // Build block cache from /nodes response
+    _nodeCache = {};
+    if (nodes && Array.isArray(nodes.nodes)){
+      nodes.nodes.forEach(function(nd){
+        var key = nd.name + ':' + _nodeAddressStr(nd);
+        if (key !== ':') _nodeCache[key] = nd;
+      });
+    }
+
+    updateVisualState(mem, nodes);
+  });
+}
+
+/* Derive address string from a runtime node.
+   The address is embedded in the node's drawflow data as address:{area,index}.
+   /nodes doesn't return it directly, so we infer it from the node name + id.
+   For simple programs: first 'ton' → T0, second 'ton' → T1, etc.
+   We build an ordered map during _debugPoll.                              */
+var _nodeOrder = {};   // 'ton' → [nd, nd, ...] (ordered by first seen)
+
+function _nodeAddressStr(nd){
+  // /nodes doesn't return address directly — use counters per type
+  // This is approximate but correct for single-program sessions
+  // because parseProgram() builds nodes in stable order.
+  return '';   // key built differently — see _buildNodeMap
+}
+
+/* Build a more reliable map: nodeType → ordered list of nodes
+   First ton node → T0, second → T1, etc.
+   First ctu/ctd node → C0, second → C1, etc.                             */
+function _buildNodeMap(nodesList){
+  var map = {};   // 'ton:T0' → node, 'ctu:C0' → node, etc.
+  var counts = {};
+  var areaFor = { ton:'T', tof:'T', tp:'T', blink:'T', ctu:'C', ctd:'C' };
+  nodesList.forEach(function(nd){
+    var area = areaFor[nd.name];
+    if (!area) return;
+    counts[nd.name] = (counts[nd.name] || 0);
+    var addr = area + counts[nd.name];
+    counts[nd.name]++;
+    map[nd.name + ':' + addr] = nd;
+  });
+  return map;
+}
+
+/* ── Core update function — NO DOM recreation ─────────────────
+   mem:   /api/memory response { X, Y, M, T, C, R, A }
+   nodes: /nodes response      { nodes:[...] }             */
+function updateVisualState(mem, nodesResp){
+  if (!_debugActive) return;
+
+  var nodeMap = {};
+  if (nodesResp && Array.isArray(nodesResp.nodes)){
+    nodeMap = _buildNodeMap(nodesResp.nodes);
+  }
+
+  // ── Contacts: .cell[data-var] ─────────────────────────────
+  document.querySelectorAll('.cell[data-var]').forEach(function(el){
+    var v    = el.dataset.var;           // 'X0', 'Y1', 'M3', 'T0', 'C0'
+    var on   = _varState(v, mem);
+    el.classList.toggle('dbg-on', on);
+  });
+
+  // ── Coils: .coil-cell[data-var] ───────────────────────────
+  document.querySelectorAll('.coil-cell[data-var]').forEach(function(el){
+    var v  = el.dataset.var;
+    var on = _varState(v, mem);
+    el.classList.toggle('dbg-on', on);
+  });
+
+  // ── Blocks: .cell.blk[data-block-id] ──────────────────────
+  document.querySelectorAll('.cell.blk[data-block-id]').forEach(function(el){
+    var blockId   = el.dataset.blockId;    // 'T0', 'C0'
+    var blockType = (el.dataset.blockType || '').toLowerCase();
+    var liveEl    = el.querySelector('.blk-live');
+
+    // Determine IEC type key for nodeMap lookup
+    var typeKey = blockType;   // 'ton', 'tof', 'ctu', 'ctd'
+    var nd = nodeMap[typeKey + ':' + blockId];
+
+    var qOn   = false;
+    var liveText = '';
+
+    if (nd) {
+      qOn = !!nd.state;   // Q output
+
+      // Live value display
+      // CTU/CTD: CV = nd.intValue (runtime stores it there), PV = nd.value (preset)
+      // TON/TOF/TP: ET = mem.R[nd.id % 32] (runtime stores elapsed ms there)
+      if (blockType === 'ctu' || blockType === 'ctd') {
+        var cv = nd.intValue || 0;
+        var pv = nd.value || nd.preset || 0;
+        liveText = 'CV:' + cv + (pv ? '/' + pv : '');
+      } else if (blockType === 'ton' || blockType === 'tof' || blockType === 'tp') {
+        var ridx = nd.id % 32;
+        var et = (mem && mem.R && ridx < mem.R.length) ? (mem.R[ridx] || 0) : 0;
+        liveText = (nd.timerRunning ? '▶ ' : '') + 'ET:' + et + 'ms';
+      }
+    } else {
+      // Fallback: use /api/memory T/C arrays
+      liveText = '';
+      var area  = blockId.charAt(0).toUpperCase();   // 'T' or 'C'
+      var idx   = parseInt(blockId.slice(1), 10) || 0;
+      if (mem) {
+        if (area === 'T' && mem.T) qOn = !!mem.T[idx];
+        if (area === 'C' && mem.C) qOn = !!mem.C[idx];
+      }
+    }
+
+    el.classList.toggle('dbg-on', qOn);
+    if (liveEl) liveEl.textContent = liveText;
+  });
+
+  // ── Wire energization: .rung-row[data-rung-id][data-path-idx] ──
+  // A path is energized when ALL its contacts/blocks evaluate TRUE.
+  // We look up the rung from rungs[] by rungId, then evaluate path[pathIdx].
+
+  document.querySelectorAll('.rung-row[data-rung-id]').forEach(function(row){
+    var rungId  = row.dataset.rungId;
+    var pathIdx = parseInt(row.dataset.pathIdx, 10) || 0;
+
+    var rung = getRung(rungId);
+    if (!rung) { row.classList.remove('energized'); return; }
+
+    var path = (rung.paths || [])[pathIdx];
+    var elems = path || [];
+
+    // Empty path → not energized
+    if (elems.length === 0) { row.classList.remove('energized'); return; }
+    // Edge [P]/[N] and CMP are not observable from /api/memory: do not draw a wrong energization
+    if (elems.some(function(x){ return x && (x.type === 'EDGE' || x.type === 'CMP'); })) { row.classList.remove('energized'); return; }
+
+    // Evaluate every element in the path
+    var on = elems.every(function(elem){
+      if (!elem) return false;
+      if (elem.type === 'CONTACT') {
+        var raw = _varState(elem.var, mem);
+        // NC contact: energized when var is FALSE
+        return elem.negated ? !raw : raw;
+      }
+      if (elem.type === 'BLOCK') {
+        // Block is energized when its Q output is TRUE
+        var bt  = (elem.blockType || '').toLowerCase();
+        var nd2 = nodeMap[bt + ':' + elem.id];
+        if (nd2) return !!nd2.state;
+        // Fallback via memory arrays
+        var a2  = elem.id.charAt(0).toUpperCase();
+        var i2  = parseInt(elem.id.slice(1), 10) || 0;
+        if (a2 === 'T' && mem && mem.T) return !!mem.T[i2];
+        if (a2 === 'C' && mem && mem.C) return !!mem.C[i2];
+        return false;
+      }
+      return false;
+    });
+
+    row.classList.toggle('energized', on);
+  });
+
+  // ── Rail L energization: active when at least one output coil var is ON ──
+  // Use actual coil output state (Y/M vars), not path energization,
+  // so the rail reflects real hardware output, not just logic conditions.
+  var anyCoilOn = false;
+  document.querySelectorAll('.coil-cell[data-var]').forEach(function(el){
+    if (_varState(el.dataset.var, mem)) anyCoilOn = true;
+  });
+  var railL = document.querySelector('.rail-L');
+  if (railL) railL.classList.toggle('energized', anyCoilOn);
+}
+
+/* Resolve a variable name to its boolean state from /api/memory.
+   Supports: X0-X63, Y0-Y63, M0-M63, T0-T31, C0-C31            */
+function _varState(varName, mem){
+  if (!mem || !varName) return false;
+  var m = /^([XYMTCxymtc])(\d+)$/.exec(varName);
+  if (!m) return false;
+  var area  = m[1].toUpperCase();
+  var index = parseInt(m[2], 10);
+  var arr   = mem[area];
+  if (!arr || index >= arr.length) return false;
+  return !!arr[index];
+}
+
+/* Clear all debug highlight without re-rendering */
+function _debugClearAll(){
+  document.querySelectorAll('.dbg-on').forEach(function(el){
+    el.classList.remove('dbg-on');
+  });
+  document.querySelectorAll('.blk-live').forEach(function(el){
+    el.textContent = '';
+  });
+  // Clear wire and rail energization
+  document.querySelectorAll('.energized').forEach(function(el){
+    el.classList.remove('energized');
+  });
+}
+
+/* ================================================================
+   E3 — Ladder v4: edges [P]/[N], CMP, BLINK, AI1/SCALE/PWM, counter
+   reset/load, SR/RS priority, protected FBD<->Ladder conversion.
+   Same IR as the FBD editor (compileLadder); no second engine.
+   ================================================================ */
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+var CMP_OPS=['>','<','>=','<=','==','!='];
+var _coilPrio='S';
+var _protect=null;           // set when the saved FBD program could not be converted
+
+/* Keep uid() ahead of any 'rN' id that came from a file */
+function _syncUid(){
+  rungs.forEach(function(r){
+    var m=/^r(\d+)$/.exec(r.id||''); if(m && parseInt(m[1],10)>=_uid) _uid=parseInt(m[1],10)+1;
+  });
+}
+
+/* Replace the program with a migrated one. Returns {ok,notes}. The current
+   program is only touched when the new one is fully built (atomic). */
+function adoptProgram(data){
+  var mig=LadderAST.migrateProgram(data,uid);
+  if(!mig.rungs || mig.rungs.length===0) return {ok:false,notes:mig.notes.length?mig.notes:['The file has no rungs.']};
+  rungs=mig.rungs; _syncUid(); selRungId=null;
+  return {ok:true,notes:mig.notes,fromVersion:mig.fromVersion};
+}
+
+/* ── Helpers over the whole program ─────────────────────────── */
+function numericNames(){
+  var names=['AI1'];
+  rungs.forEach(function(r){
+    if(r.kind==='NUM') (r.chain||[]).forEach(function(b){
+      if(String(b.fn).toUpperCase()==='SCALE' && b.id && names.indexOf(b.id)<0) names.push(b.id);
+    });
+  });
+  return names;
+}
+function nextScaleId(){
+  var used={}; numericNames().forEach(function(n){ used[n]=true; });
+  for(var i=0;i<64;i++) if(!used['S'+i]) return 'S'+i;
+  return 'S0';
+}
+function _hasCoil(v,mode){
+  v=String(v||'').toUpperCase();
+  return rungs.some(function(r){ return (r.outputs||[]).some(function(c){
+    return c.type!=='PWM' && String(c.var||'').toUpperCase()===v && c.mode===mode; }); });
+}
+
+/* ── Generic parameter modal ────────────────────────────────── */
+var _prm=null;
+function openParamModal(title,fields,hint,onOk){
+  _prm={fields:fields,onOk:onOk};
+  document.getElementById('prm-title').textContent=title;
+  var h=document.getElementById('prm-hint'); h.textContent=hint||''; h.style.color='';
+  var box=document.getElementById('prm-fields'); box.innerHTML='';
+  fields.forEach(function(f){
+    var lbl=document.createElement('label'); lbl.className='modal-lbl'; lbl.textContent=f.label; box.appendChild(lbl);
+    var el;
+    if(f.type==='select'){
+      el=document.createElement('select'); el.className='modal-inp';
+      f.options.forEach(function(o){ var op=document.createElement('option'); op.value=o.value; op.textContent=o.label; el.appendChild(op); });
+    } else { el=document.createElement('input'); el.className='modal-inp'; el.type=f.type||'text'; el.autocomplete='off'; }
+    el.id='prm-'+f.key;
+    el.value=(f.value===undefined||f.value===null)?'':String(f.value);
+    box.appendChild(el);
+  });
+  document.getElementById('prm-modal').classList.add('show');
+}
+function closeParamModal(){ document.getElementById('prm-modal').classList.remove('show'); _prm=null; }
+function confirmParamModal(){
+  if(!_prm) return;
+  var vals={};
+  _prm.fields.forEach(function(f){ vals[f.key]=document.getElementById('prm-'+f.key).value; });
+  var err=_prm.onOk(vals);
+  if(err){ var h=document.getElementById('prm-hint'); h.textContent=err; h.style.color='var(--red)'; return; }
+  closeParamModal();
+}
+
+/* ── CMP element ─────────────────────────────────────────────── */
+function openCmpModal(rId,pi,ci,existing){
+  var names=numericNames();
+  if(existing && existing.src && names.indexOf(existing.src)<0) names.push(existing.src);
+  var opts=names.map(function(n){ return {value:n,label:n}; });
+  openParamModal('CMP — Comparator',[
+    {key:'src',  label:'Compare (numeric source)', type:'select', options:opts, value:existing?existing.src:names[names.length-1]},
+    {key:'op',   label:'Operator', type:'select', options:CMP_OPS.map(function(o){ return {value:o,label:o}; }), value:existing?(existing.op||'>'):'>'},
+    {key:'src2', label:'Against', type:'select', options:[{value:'',label:'constant value'}].concat(opts), value:(existing&&existing.src2)||''},
+    {key:'value',label:'Constant value (integer)', type:'number', value:(existing&&existing.value!==undefined)?existing.value:0}
+  ],'AI1 = raw ADC 0-4095.  Sn = SCALE output (define it in an analog rung).',function(v){
+    if(!v.src2 && !/^-?\d+$/.test(String(v.value).trim())) return 'The value must be an integer.';
+    var e={type:'CMP',src:v.src,op:v.op,value:parseInt(v.value,10)||0};
+    if(v.src2){ e.src2=v.src2; e.value=0; }
+    if(existing && existing.negated) e.negated=true;
+    setElem(rId,pi,ci,e);
+    setStatus('CMP '+e.src+' '+e.op+' '+(e.src2||e.value));
+  });
+}
+function mkCmpCell(rId,pi,ci,elem){
+  var div=document.createElement('div'); div.className='cell cmp';
+  div.title='CMP '+elem.src+' '+(elem.op||'>')+' '+(elem.src2||elem.value);
+  var sym=document.createElement('div'); sym.className='c-sym'; sym.textContent='CMP'+(elem.negated?' /':'');
+  var addr=document.createElement('div'); addr.className='c-addr'; addr.textContent=elem.src+' '+(elem.op||'>')+' '+(elem.src2||elem.value);
+  var typ=document.createElement('div'); typ.className='c-type'; typ.textContent='COMPARE';
+  var del=document.createElement('div'); del.className='c-del'; del.textContent='x'; del.title='Delete';
+  del.onclick=function(e){ e.stopPropagation(); delElem(rId,pi,ci); };
+  div.appendChild(sym); div.appendChild(addr); div.appendChild(typ); div.appendChild(del);
+  div.onclick=function(e){ if(e.target===del) return; openCmpModal(rId,pi,ci,elem); };
+  div.draggable=true;
+  div.ondragstart=function(e){ e.dataTransfer.setData('cell-src',JSON.stringify({rId:rId,pi:pi,ci:ci,elem:elem})); e.dataTransfer.effectAllowed='move'; };
+  return div;
+}
+
+/* ── PWM on/off coil ─────────────────────────────────────────── */
+function openPwmCoilModal(rId,existing,ci){
+  openParamModal('PWM output (on/off)',[
+    {key:'out',label:'PWM channel',type:'select',options:[1,2,3,4].map(function(n){ return {value:String(n-1),label:'PWM'+n+' (Y'+(n-1)+')'}; }),value:existing?String(existing.out):'0'}
+  ],'Rung true = 4095 (100 %), false = 0. For a variable duty use an analog rung AI1 → SCALE → PWM.',function(v){
+    var coil={type:'PWM',out:parseInt(v.out,10),mode:'NORMAL',var:''};
+    var r=getRung(rId); if(!r) return null;
+    if(ci!==null && ci!==undefined) r.outputs[ci]=coil; else r.outputs.push(coil);
+    renderAll(); updateAST(rId); setStatus('PWM'+(coil.out+1)+' coil');
+    return null;
+  });
+}
+
+/* ── Analog (NUM) rungs ─────────────────────────────────────── */
+function addNumRung(afterId){
+  var r={id:uid(),kind:'NUM',comment:'',paths:[],outputs:[],
+         chain:[{fn:'AI1'},{fn:'SCALE',id:nextScaleId(),inMin:0,inMax:4095,outMin:0,outMax:100}]};
+  var i=afterId?rungs.findIndex(function(x){return x.id===afterId;}):-1;
+  if(i>=0) rungs.splice(i+1,0,r); else rungs.push(r);
+  renderAll(); selRung(r.id); setStatus('Analog rung added (AI1 → SCALE '+r.chain[1].id+')');
+}
+function _numLines(b){
+  var fn=String(b.fn).toUpperCase();
+  if(fn==='AI1') return ['ADC 0-4095'];
+  if(fn==='SCALE') return ['in '+b.inMin+'..'+b.inMax,'out '+b.outMin+'..'+b.outMax].concat(b.src?['src '+b.src]:[]);
+  if(fn==='PWM') return ['PWM'+((b.out|0)+1)+' (Y'+(b.out|0)+')'].concat(b.src?['src '+b.src]:[]);
+  return [];
+}
+function mkNumCell(rId,bi,b){
+  var fn=String(b.fn).toUpperCase();
+  var div=document.createElement('div'); div.className='cell fn'; div.dataset.fn=fn;
+  div.title=fn+(b.id?' '+b.id:'');
+  var t=document.createElement('div'); t.className='fn-title'; t.textContent=fn+(b.id?'  '+b.id:''); div.appendChild(t);
+  _numLines(b).forEach(function(l){ var d=document.createElement('div'); d.className='fn-line'; d.textContent=l; div.appendChild(d); });
+  var del=document.createElement('div'); del.className='c-del'; del.textContent='x'; del.title='Delete';
+  del.onclick=function(e){ e.stopPropagation(); delNumBlock(rId,bi); };
+  div.appendChild(del);
+  div.onclick=function(e){ if(e.target===del) return; openNumModal(rId,bi,b); };
+  return div;
+}
+function mkNumBody(rung){
+  var body=document.createElement('div'); body.className='rung-body';
+  var row=document.createElement('div'); row.className='rung-row num-row'; row.dataset.rungId=rung.id; row.dataset.pathIdx=0;
+  var cz=document.createElement('div'); cz.className='cell-zone';
+  (rung.chain||[]).forEach(function(b,bi){
+    if(bi>0){ var ar=document.createElement('div'); ar.className='fn-arrow'; ar.textContent='→'; cz.appendChild(ar); }
+    cz.appendChild(mkNumCell(rung.id,bi,b));
+  });
+  var add=document.createElement('div'); add.className='cell empty'; add.title='Add AI1 / SCALE / PWM';
+  add.innerHTML='<div style="font-family:var(--font-mono);font-size:12px;color:var(--border2)">+</div>';
+  add.onclick=function(){ addNumBlock(rung.id); };
+  cz.appendChild(add);
+  row.appendChild(cz); body.appendChild(row);
+  return body;
+}
+function addNumBlock(rId){
+  openParamModal('Add analog block',[
+    {key:'fn',label:'Block',type:'select',options:[{value:'AI1',label:'AI1 — analog input'},{value:'SCALE',label:'SCALE — range conversion'},{value:'PWM',label:'PWM — analog output'}],value:'SCALE'}
+  ],'The block takes the previous one in the row as its input.',function(v){
+    setTimeout(function(){ openNumModal(rId,-1,{fn:v.fn}); },0);
+    return null;
+  });
+}
+function delNumBlock(rId,bi){
+  var r=getRung(rId); if(!r||!r.chain) return;
+  r.chain.splice(bi,1); renderAll(); updateAST(rId);
+}
+function _renameScale(oldId,newId){
+  if(!oldId||oldId===newId) return;
+  rungs.forEach(function(r){
+    if(r.kind==='NUM') (r.chain||[]).forEach(function(b){ if(b.src===oldId) b.src=newId; });
+    else (r.paths||[]).forEach(function(p){ (p||[]).forEach(function(e){
+      if(e&&e.type==='CMP'){ if(e.src===oldId) e.src=newId; if(e.src2===oldId) e.src2=newId; } }); });
+  });
+}
+function openNumModal(rId,bi,existing){
+  var fn=String(existing.fn).toUpperCase();
+  var r=getRung(rId); if(!r) return;
+  var isNew=(bi<0);
+  function commit(b){
+    if(isNew) r.chain.push(b); else r.chain[bi]=b;
+    renderAll(); updateAST(rId); setStatus(fn+' '+(b.id||'')+' set');
+  }
+  if(fn==='AI1'){
+    openParamModal('AI1 — analog input',[], 'Raw ADC value 0-4095 (shared by every AI1 in the program).',function(){ commit({fn:'AI1'}); return null; });
+    return;
+  }
+  var names=numericNames().filter(function(n){ return n!==existing.id; });
+  var srcOpts=[{value:'',label:'(previous block in this row)'}].concat(names.map(function(n){ return {value:n,label:n}; }));
+  if(fn==='SCALE'){
+    openParamModal('SCALE — range conversion',[
+      {key:'id',label:'Name (S0, S1...)',type:'text',value:existing.id||nextScaleId()},
+      {key:'src',label:'Input',type:'select',options:srcOpts,value:existing.src||''},
+      {key:'inMin',label:'Input min',type:'number',value:existing.inMin!==undefined?existing.inMin:0},
+      {key:'inMax',label:'Input max',type:'number',value:existing.inMax!==undefined?existing.inMax:4095},
+      {key:'outMin',label:'Output min',type:'number',value:existing.outMin!==undefined?existing.outMin:0},
+      {key:'outMax',label:'Output max',type:'number',value:existing.outMax!==undefined?existing.outMax:100}
+    ],'Integer math, truncated toward zero and clamped to the output range.',function(v){
+      var id=v.id.trim().toUpperCase();
+      if(!/^S\d+$/.test(id)) return 'The name must look like S0, S1, S2...';
+      if(numericNames().indexOf(id)>=0 && id!==existing.id) return id+' is already used by another SCALE.';
+      var nums={}; var bad=null;
+      ['inMin','inMax','outMin','outMax'].forEach(function(k){ if(!/^-?\d+$/.test(String(v[k]).trim())) bad=k; nums[k]=parseInt(v[k],10); });
+      if(bad) return bad+' must be an integer.';
+      var b={fn:'SCALE',id:id,inMin:nums.inMin,inMax:nums.inMax,outMin:nums.outMin,outMax:nums.outMax};
+      if(v.src) b.src=v.src;
+      if(existing.id) _renameScale(existing.id,id);
+      commit(b); return null;
+    });
+    return;
+  }
+  if(fn==='PWM'){
+    openParamModal('PWM — analog output',[
+      {key:'out',label:'PWM channel',type:'select',options:[1,2,3,4].map(function(n){ return {value:String(n-1),label:'PWM'+n+' (Y'+(n-1)+')'}; }),value:String(existing.out|0)},
+      {key:'src',label:'Input',type:'select',options:srcOpts,value:existing.src||''}
+    ],'Duty = the input value (0-4095 hardware scale). Use SCALE to map a range to 0-4095.',function(v){
+      var b={fn:'PWM',out:parseInt(v.out,10)}; if(v.src) b.src=v.src;
+      commit(b); return null;
+    });
+  }
+}
+
+/* ── Placing a tool on a cell (click or drop) ───────────────── */
+function placeTool(tool,rId,pi,ci){
+  var prev=selTool; selTool=tool;
+  try{
+    if(tool==='COIL')       openCoilModal(rId,null,null,'NORMAL');
+    else if(tool==='SET')   openCoilModal(rId,null,null,'SET');
+    else if(tool==='RESET') openCoilModal(rId,null,null,'RESET');
+    else if(tool==='CRST')  openCoilModal(rId,null,null,'RESET','C0');
+    else if(tool==='CLD')   openCoilModal(rId,null,null,'LOAD','C0');
+    else if(tool==='PWMC')  openPwmCoilModal(rId,null,null);
+    else if(_isBlockTool(tool)) openBlockModal(rId,pi,ci,null);
+    else if(tool==='CMP')   openCmpModal(rId,pi,ci,null);
+    else if(tool==='AI1'||tool==='SCALE'||tool==='PWM') setStatus('Analog blocks go in an analog rung (+ Analog Rung in the palette).');
+    else openContModal(rId,pi,ci,null);
+  } finally { selTool=prev; }
+}
+
+/* ── Conversion banner / protection ─────────────────────────── */
+var _TYPE_LABEL={cmp:'comparador CMP',scale:'bloque SCALE',pwm:'salida PWM',analog1:'entrada analógica AI1',blink:'bloque BLINK',
+  ton:'temporizador TON',tof:'temporizador TOF',tp:'temporizador TP',ctu:'contador CTU',ctd:'contador CTD',sr:'memoria SR',rs:'memoria RS',
+  r_trig:'detector de flanco R_TRIG',f_trig:'detector de flanco F_TRIG',and:'compuerta AND',or:'compuerta OR',not:'compuerta NOT',xor:'compuerta XOR'};
+function friendlyReason(w){
+  var m=/^Node (\d+) \((\w+)\): (.*)$/.exec(w);
+  if(/Feedback loop/.test(w)) return 'El programa tiene una realimentación (una señal vuelve a su propia condición). El orden de evaluación dentro de ese lazo no se puede garantizar al convertir. Reescribí la retención con una memoria SR/RS (entradas S y R).';
+  if(m){
+    var lbl=_TYPE_LABEL[m[2]]||m[2];
+    return 'El '+lbl+' (nodo '+m[1]+') no se puede convertir: '+m[3];
+  }
+  if(/NOT equivalent/.test(w)) return 'La verificación comparó el Ladder generado con el FBD y encontró diferencias, por eso no se aceptó la conversión.';
+  return w;
+}
+function showConvBanner(kind,title,items,buttons){
+  var b=document.getElementById('conv-banner'); if(!b) return;
+  b.className=kind==='ok'?'ok':''; b.style.display='block'; b.innerHTML='';
+  var t=document.createElement('div'); t.className='cb-ttl'; t.textContent=title; b.appendChild(t);
+  if(items && items.length){
+    var ul=document.createElement('ul'); ul.style.margin='0'; ul.style.padding='0';
+    items.slice(0,8).forEach(function(w){
+      var li=document.createElement('li'); li.textContent=friendlyReason(w);
+      if(friendlyReason(w)!==w){ var raw=document.createElement('div'); raw.className='cb-raw'; raw.textContent=w; li.appendChild(raw); }
+      ul.appendChild(li);
+    });
+    if(items.length>8){ var more=document.createElement('li'); more.textContent='… y '+(items.length-8)+' más'; ul.appendChild(more); }
+    b.appendChild(ul);
+  }
+  (buttons||[]).forEach(function(bt){
+    var x=document.createElement('button'); x.textContent=bt.label; x.onclick=bt.fn; b.appendChild(x);
+  });
+}
+function hideConvBanner(){ var b=document.getElementById('conv-banner'); if(b){ b.style.display='none'; b.innerHTML=''; } }
+
+/* IR → Ladder, verified. Returns the convertIRToLadder result. */
+function convertIR(irSrc){
+  if(typeof LadderDecompiler==='undefined') return {ok:false,reasons:['El decompilador no está cargado.']};
+  var opts={};
+  if(typeof PlcCompiler!=='undefined' && typeof IrCheck!=='undefined'){ opts.compile=PlcCompiler.compileLadder; opts.check=IrCheck; }
+  return LadderDecompiler.convertIRToLadder(irSrc,opts);
+}
+
+/* Explicit "FROM FBD": re-converts the program saved on the device. If it
+   cannot be converted the current editor content is left untouched. */
+function convertFromSaved(){
+  return loadProgram().then(function(program){
+    if(!program || !program.ir || !program.ir.program){ setStatus('No saved FBD program with an IR was found.'); showConvBanner('warn','Nada para convertir',['No hay un programa FBD guardado en el dispositivo.']); return null; }
+    var cv=convertIR(program.ir);
+    if(!cv.ok){
+      showConvBanner('warn','El programa FBD no se puede convertir a Ladder. Se conserva el programa actual del editor y el programa guardado no fue modificado.',cv.reasons);
+      csStatus('warn','FBD no convertible'); return cv;
+    }
+    var hasWork=rungs.some(function(r){ return r.kind==='NUM' || (r.outputs||[]).length || (r.paths||[]).some(function(p){ return p.length>1; }); });
+    if(hasWork && !confirm('Reemplazar los renglones actuales por el FBD convertido?')) return cv;
+    rungs=cv.rungs.map(function(r){ return LadderAST.migrateRung(r,uid); }); _syncUid(); selRungId=null; _protect=null;
+    renderAll();
+    showConvBanner('ok','Conversión FBD → Ladder correcta'+(cv.verified?' y verificada':' (sin verificar)'),cv.warnings);
+    csStatus('ok','FBD convertido: '+rungs.length+' renglón(es)');
+    return cv;
+  });
+}
+
+/* ================================================================ INIT ================================================================ */
+
+/* ── createDefaultRung is defined near mkRung above ─────────── */
+
+/* ── Safe ladder initialiser ─────────────────────────────────── *
+ *  Accepts a raw program object (from /load or any source),     *
+ *  migrates it through legacyToPaths, assigns ids, and renders. *
+ *  Never throws — always falls back to a valid default rung.    */
+function initLadder(program){
+  try {
+    var rawProgram = null;
+
+    // ── Ladder shapes (all versions): envelope, bare rungs object, raw array
+    if (program && program.source === 'ladder' && program.ladder && Array.isArray(program.ladder.rungs)) rawProgram = program;
+    else if (program && program.ladder && Array.isArray(program.ladder.rungs)) rawProgram = program;
+    else if (program && Array.isArray(program.rungs)) rawProgram = program;
+    else if (Array.isArray(program)) rawProgram = program;
+
+    if (rawProgram) {
+      var res = adoptProgram(rawProgram);
+      if (res.ok) {
+        _protect = null; hideConvBanner();
+        renderAll();
+        setStatus('Program loaded — ' + rungs.length + ' rung(s)' + (res.notes.length ? ' — ' + res.notes.join(' ') : ''));
+        csStatus(res.notes.length ? 'warn' : 'ok', rungs.length + ' rung(s) loaded');
+        return;
+      }
+    }
+
+    // ── FBD envelope (or any envelope with a compiled IR) ──────────────
+    else if (program && program.ir && program.ir.program && program.ir.program.nodes) {
+      var srcLabel = (program.source === 'fbd' || program.fbd) ? 'FBD' : 'IR';
+      var cv = convertIR(program.ir);
+
+      if (!cv.ok) {
+        // Conversion refused: the saved program is NOT touched. The editor opens with an empty
+        // rung and COMPILE stays blocked so the saved program cannot be overwritten by accident.
+        _protect = { label: srcLabel, reasons: cv.reasons };
+        rungs = [ createDefaultRung() ];
+        renderAll();
+        csStatus('warn', srcLabel + ' no convertible a Ladder — COMPILE bloqueado');
+        setStatus('El programa ' + srcLabel + ' guardado se conserva sin cambios.');
+        showConvBanner('warn',
+          'Este programa ' + srcLabel + ' no se puede convertir a Ladder. El programa guardado NO fue modificado y la compilación desde este editor está bloqueada.',
+          cv.reasons,
+          [{ label: 'Empezar un Ladder nuevo (reemplazará el programa guardado al compilar)', fn: function(){ _protect = null; hideConvBanner(); csStatus('ok','Ready'); setStatus('Ladder nuevo'); } }]);
+        return;
+      }
+
+      rungs = cv.rungs.map(function(r){ return LadderAST.migrateRung(r, uid); });
+      _syncUid(); _protect = null;
+      renderAll();
+      csStatus('ok', srcLabel + ' convertido — ' + rungs.length + ' renglón(es)');
+      setStatus(srcLabel + ' convertido a Ladder' + (cv.verified ? ' (equivalencia verificada)' : ' (sin verificar)') + ' — ' + rungs.length + ' renglón(es)');
+      showConvBanner('ok', 'Conversión ' + srcLabel + ' → Ladder correcta' + (cv.verified ? ' y verificada contra el programa original' : ''), cv.warnings || []);
+      return;
+    }
+  } catch(e) {
+    console.error('LADDER INIT ERROR:', e);
+    csStatus('err', 'Init error — ' + e.message);
+  }
+
+  // Nothing usable — start with a clean default rung
+  console.warn('No ladder program found — starting with default rung');
+  rungs = [ createDefaultRung() ];
+  renderAll();
+  var nonEmpty = program && typeof program === 'object' && Object.keys(program).length > 0;
+  if (nonEmpty) {
+    // Hay un programa guardado que no es Ladder ni se pudo convertir: no se pisa.
+    _protect = { label: 'guardado', reasons: ['El programa guardado tiene un formato que este editor no reconoce (' + (program.format || program.source || 'sin formato') + ').'] };
+    showConvBanner('warn', 'El programa guardado no se pudo abrir. NO fue modificado y la compilación desde este editor está bloqueada.', _protect.reasons,
+      [{ label: 'Empezar un Ladder nuevo (reemplazará el programa guardado al compilar)', fn: function(){ _protect = null; hideConvBanner(); csStatus('ok','Ready'); setStatus('Ladder nuevo'); } }]);
+    csStatus('warn', 'Programa guardado no reconocido — COMPILE bloqueado');
+    setStatus('El programa guardado se conserva sin cambios.');
+    return;
+  }
+  setStatus('New program — default rung created');
+  csStatus('ok', 'Ready');
+}
+
+/* ── _ladderASTRungToPaths(astRung) ──────────────────────────────
+   Converts one LadderProgram AST rung (from decompileIRToLadder)
+   into the paths/outputs format used by the ladder.html editor.
+
+   AST rung: { id, condition: ExprNode, actions: ActionNode[], meta }
+   ExprNode: { type:'contact', var, mode } |
+             { type:'edge', var, edge } |
+             { type:'not', child } |
+             { type:'and', children } |
+             { type:'or',  children }
+   ActionNode: { type:'coil'|'set'|'reset', target }
+
+   Strategy: flatten the AST condition into parallel paths (OR of ANDs).
+   Each OR branch becomes a path row; each AND branch becomes contacts.
+   Handles the SOP form that decompileIRToLadder produces.           */
+function _ladderASTRungToPaths(astRung) {
+  if (!astRung || !astRung.condition || !Array.isArray(astRung.actions)) return null;
+
+  function exprToPaths(node) {
+    // Returns: [ path, path, ... ] where path = [ elem, ... ]
+    if (!node) return [];
+
+    if (node.type === 'contact') {
+      var elem = { type: 'CONTACT', var: node.var, negated: node.mode === 'NC' };
+      return [ [elem] ];
+    }
+
+    if (node.type === 'edge') {
+      // Edge detection: represent as a contact on the signal variable
+      // (the edge semantics are in the IR; in the Ladder editor it shows as contact)
+      var edgeElem = { type: 'CONTACT', var: node.var, negated: false };
+      return [ [edgeElem] ];
+    }
+
+    if (node.type === 'not') {
+      // NOT over a contact → NC contact
+      if (node.child && node.child.type === 'contact') {
+        return [ [{ type: 'CONTACT', var: node.child.var, negated: true }] ];
+      }
+      // NOT over something else — represent as NC on a generic var (lossy but safe)
+      var inner = exprToPaths(node.child);
+      if (inner.length > 0 && inner[0].length > 0) {
+        var firstElem = inner[0][0];
+        return [ [{ type: 'CONTACT', var: firstElem.var || 'M0', negated: !firstElem.negated }] ];
+      }
+      return [];
+    }
+
+    if (node.type === 'and') {
+      // AND → single path with all contacts in series
+      var seriesElems = [];
+      (node.children || []).forEach(function(child) {
+        var childPaths = exprToPaths(child);
+        if (childPaths.length > 0) {
+          childPaths[0].forEach(function(e) { seriesElems.push(e); });
+        }
+      });
+      return seriesElems.length > 0 ? [seriesElems] : [];
+    }
+
+    if (node.type === 'or') {
+      // OR → multiple parallel paths
+      var orPaths = [];
+      (node.children || []).forEach(function(child) {
+        exprToPaths(child).forEach(function(p) { orPaths.push(p); });
+      });
+      return orPaths;
+    }
+
+    if (node.type === 'block') {
+      // Decompiled block node (TON/TOF/CTU/CTD) — reconstruct BLOCK element
+      var blockTypeMap = { TON:'TON', TOF:'TOF', TP:'TP', CTU:'CTU', CTD:'CTD' };
+      var bt = blockTypeMap[node.blockType] || 'TON';
+      return [ [{ type:'BLOCK', blockType:bt, id:node.addr||'T0', preset:node.preset||0 }] ];
+    }
+
+    return [];
+  }
+
+  var paths = exprToPaths(astRung.condition);
+  if (paths.length === 0) paths = [[]];
+
+  var outputs = (astRung.actions || []).map(function(act) {
+    var mode = 'NORMAL';
+    if (act.type === 'set')   mode = 'SET';
+    if (act.type === 'reset') mode = 'RESET';
+    return { type: 'COIL', var: act.target, mode: mode };
+  });
+
+  return {
+    id:      astRung.id || uid(),
+    comment: (astRung.meta && astRung.meta.comment) || '',
+    paths:   paths,
+    outputs: outputs
+  };
+}
+
+/* ── Load saved program from ESP32 /load endpoint ────────────── *
+ *  Returns the parsed JSON or null on any failure.              */
+var _loadCorrupt = null;   // texto si /load devolvió un programa guardado ilegible
+function loadProgram(){
+  return fetch('/load')
+    .then(function(r){
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(function(raw){
+      if (!raw || raw.trim() === '') {
+        console.warn('[Ladder] /load returned empty response');
+        return null;
+      }
+      var parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch(e) {
+        _loadCorrupt = 'El programa guardado en el dispositivo no se puede leer (JSON dañado: ' + e.message + ').';
+        console.error('[Ladder] Invalid JSON from /load:', e.message);
+        console.error('[Ladder] Raw (first 200):', raw.substring(0, 200));
+        return null;
+      }
+      console.log('[Ladder] Program loaded:', raw.length, 'bytes, format:', parsed.format || '(none)');
+      return parsed;
+    })
+    .catch(function(e){
+      console.warn('[Ladder] Could not fetch /load:', e.message);
+      return null;
+    });
+}
+
+/* ── Startup sequence ────────────────────────────────────────── *
+ *  Priority:                                                     *
+ *    1. Saved program on ESP32  (/load)                         *
+ *    2. Session draft           (sessionStorage)                 *
+ *    3. Default rung            (createDefaultRung)             */
+refreshBadge();
+
+(function startup(){
+  // 1. Try /load first — simulator or ESP32.
+  //    If /load returns a plc_program envelope (saved from FBD or Ladder),
+  //    it takes priority over any stale sessionStorage draft.
+  //    sessionStorage draft is only used when /load has nothing.
+  csStatus('warn', 'Loading program...');
+  loadProgram().then(function(program) {
+    _startupFlow(program);
+    // Si hay algo guardado que el editor no pudo leer, COMPILE queda bloqueado: no se pisa lo persistido en el PLC.
+    if (_loadCorrupt && !_protect) {
+      _protect = { label: 'guardado', reasons: [_loadCorrupt] };
+      showConvBanner('warn', 'El programa guardado no se pudo abrir. NO fue modificado y la compilación desde este editor está bloqueada.', _protect.reasons,
+        [{ label: 'Empezar un Ladder nuevo (reemplazará el programa guardado al compilar)', fn: function(){ _protect = null; hideConvBanner(); csStatus('ok','Ready'); setStatus('Ladder nuevo'); } }]);
+      csStatus('warn', 'Programa guardado ilegible — COMPILE bloqueado');
+    }
+  });
+})();
+
+function _startupFlow(program) {
+  {
+    var isEmpty = !program ||
+      (typeof program === 'object' && Object.keys(program).length === 0);
+
+    // If /load has a real plc_program envelope → use it, clear stale draft
+    if (!isEmpty && program && program.format === 'plc_program') {
+      try { sessionStorage.removeItem('ld_pro_v2'); } catch(e) {}
+      initLadder(program);
+      return;
+    }
+
+    // If /load has a ladder-native envelope → use it, clear stale draft
+    if (!isEmpty && program && (program.source === 'ladder' || program.ladder)) {
+      try { sessionStorage.removeItem('ld_pro_v2'); } catch(e) {}
+      initLadder(program);
+      return;
+    }
+
+    // 2. /load empty or unknown format — try sessionStorage draft
+    var hasDraft = false;
+    try {
+      var d = sessionStorage.getItem('ld_pro_v2');
+      if (d) {
+        var parsed = JSON.parse(d);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          hasDraft = adoptProgram(parsed).ok;
+        }
+      }
+    } catch(e) { console.warn('Draft parse error:', e); }
+
+    if (hasDraft) {
+      renderAll();
+      setStatus('Draft restored — ' + rungs.length + ' rung(s)');
+      csStatus('ok', 'Draft restored');
+      return;
+    }
+
+    // 3. Nothing found — start with default rung
+    if (isEmpty) {
+      initLadder(null);
+    } else {
+      initLadder(program);  // unknown format, let initLadder try all shapes
+    }
+  }
+}
+</script>
+<div class="license-footer">PLC-CORE-MDE &copy; 2026 Martín Entraigas – MDE Electrónica&nbsp;&nbsp;Uso no comercial únicamente.&nbsp;&nbsp;<a href="LICENSE.txt" target="_blank">Ver licencia completa</a></div>
+<style>
+.license-footer {
+  font-family: var(--font-mono, 'Share Tech Mono', monospace);
+  font-size: 9px;
+  color: var(--text-dim, #4a6070);
+  text-align: center;
+  padding: 8px 16px;
+  letter-spacing: .5px;
+  position: relative;
+  z-index: 10;
+}
+.license-footer a {
+  color: var(--text-dim, #4a6070);
+  text-decoration: underline;
+}
+.license-footer a:hover {
+  color: var(--accent2, #3ab4f2);
+}
+</style>
+</body>
+</html>

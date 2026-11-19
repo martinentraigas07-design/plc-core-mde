@@ -1,0 +1,293 @@
+[
+ {
+  "id": "1.1",
+  "title": "Pulsador NA -> lámpara",
+  "status": "OK",
+  "expected": [
+   "0000",
+   "1000",
+   "0000"
+  ],
+  "obtained": [
+   "0000",
+   "1000",
+   "0000"
+  ],
+  "note": "",
+  "ladder": "ok"
+ },
+ {
+  "id": "1.2",
+  "title": "Interruptor de palanca",
+  "status": "OK",
+  "expected": [
+   "1000",
+   "1000",
+   "0000"
+  ],
+  "obtained": [
+   "1000",
+   "1000",
+   "0000"
+  ],
+  "note": ""
+ },
+ {
+  "id": "1.4",
+  "title": "Sensor + relé",
+  "status": "OK",
+  "expected": [
+   "0000",
+   "1000",
+   "0000"
+  ],
+  "obtained": [
+   "0000",
+   "1000",
+   "0000"
+  ],
+  "note": ""
+ },
+ {
+  "id": "1.3",
+  "title": "AND (verde NA + rojo NC)",
+  "status": "OK",
+  "expected": [
+   "0000",
+   "1000",
+   "0000",
+   "0000"
+  ],
+  "obtained": [
+   "0000",
+   "1000",
+   "0000",
+   "0000"
+  ],
+  "note": "",
+  "ladder": "ok"
+ },
+ {
+  "id": "1.2-ej",
+  "title": "NOT: enciende con la puerta abierta",
+  "status": "OK",
+  "expected": [
+   "0000",
+   "1000"
+  ],
+  "obtained": [
+   "0000",
+   "1000"
+  ],
+  "note": "",
+  "ladder": "ok"
+ },
+ {
+  "id": "2.1",
+  "title": "Arranque/paro SR (paro NC)",
+  "status": "DEFECTO_MANUAL",
+  "expected": [
+   "0000",
+   "1000",
+   "1000",
+   "0000",
+   "0000",
+   "1000",
+   "1000",
+   "0000"
+  ],
+  "obtained": [
+   "0000",
+   "1000",
+   "0000",
+   "0000",
+   "0000",
+   "1000",
+   "0000",
+   "0000"
+  ],
+  "note": "El FBD dibuja IN2 (NC, vale 1 en reposo) directo a R: con R=1 en reposo el SR se resetea al soltar IN1. Falta un NOT entre IN2 y R.",
+  "ladder": "ok"
+ },
+ {
+  "id": "2.1-cable",
+  "title": "Cable de paro cortado",
+  "status": "ADVERTENCIA",
+  "expected": [],
+  "obtained": [
+   "0000",
+   "1000",
+   "0000"
+  ],
+  "note": "La corrección debe ser RS (reset dominante) con R=NOT(IN2), o SR con S=AND(IN1,IN2) como en el Ladder del manual. Un SR con solo el NOT permite arrancar con el cable de paro cortado."
+ },
+ {
+  "id": "2.2",
+  "title": "Toggle R_TRIG+SR (7 nodos)",
+  "status": "OK",
+  "expected": [
+   "0000",
+   "1000",
+   "1000",
+   "0000",
+   "0000",
+   "1000",
+   "1000"
+  ],
+  "obtained": [
+   "0000",
+   "1000",
+   "1000",
+   "0000",
+   "0000",
+   "1000",
+   "1000"
+  ],
+  "note": "",
+  "ladder": "ok"
+ },
+ {
+  "id": "2.3",
+  "title": "Parada de emergencia NC",
+  "status": "DEFECTO_MANUAL",
+  "expected": [
+   "0000",
+   "1000",
+   "1000",
+   "0000"
+  ],
+  "obtained": [
+   "0000",
+   "1000",
+   "0000",
+   "0000"
+  ],
+  "note": "Mismo defecto de 2.1 (falta NOT en R). Además: si la emergencia solo está en la cadena de S, abrirla no detiene un motor ya en marcha; debe actuar sobre R."
+ },
+ {
+  "id": "2.4",
+  "title": "Interlock",
+  "status": "ADVERTENCIA",
+  "expected": [
+   "exclusión mutua"
+  ],
+  "obtained": [
+   "0100",
+   "0100",
+   "0000"
+  ],
+  "note": "Con arranque simultáneo el ganador queda definido por el orden determinista (el motor cuya memoria es la de ID más bajo ve el estado previo del otro): aquí gana M2. El manual no lo especifica; no es un defecto, pero el ejemplo debería decir que el ganador es indistinto.",
+  "ladder": "nc"
+ },
+ {
+  "id": "3.1",
+  "title": "SR con lámparas opuestas (tabla del manual, IN2 en reposo=1)",
+  "status": "DEFECTO_MANUAL",
+  "expected": [
+   "0100",
+   "1000",
+   "1000",
+   "0100"
+  ],
+  "obtained": [
+   "0100",
+   "1000",
+   "0100",
+   "0100"
+  ],
+  "note": "La tabla de estados (reposo IN1=0,IN2=1; soltar IN1 mantiene) exige paro NC; el FBD dibujado conecta IN2 directo a R.",
+  "ladder": "ok"
+ },
+ {
+  "id": "3.2",
+  "title": "RS prioridad de reset (IN2 NC)",
+  "status": "DEFECTO_MANUAL",
+  "expected": [
+   "0000",
+   "1000",
+   "0000",
+   "0000"
+  ],
+  "obtained": [
+   "0000",
+   "0000",
+   "0000",
+   "1000"
+  ],
+  "note": "Mismo defecto: el FBD conecta IN2 (NC) directo a R; el Ladder del mismo ejemplo usa [/ IN2] en el RESET.",
+  "ladder": "ok"
+ },
+ {
+  "id": "3.3",
+  "title": "Alarma con memoria",
+  "status": "OK",
+  "expected": [
+   "0000",
+   "1000",
+   "1000",
+   "1000",
+   "0000",
+   "0000",
+   "1000",
+   "1000"
+  ],
+  "obtained": [
+   "0000",
+   "1000",
+   "1000",
+   "1000",
+   "0000",
+   "0000",
+   "1000",
+   "1000"
+  ],
+  "note": "",
+  "ladder": "ok"
+ },
+ {
+  "id": "3.4",
+  "title": "Lámparas alternadas con F_TRIG",
+  "status": "OK",
+  "expected": [
+   "0100",
+   "0100",
+   "1000",
+   "1000",
+   "0100",
+   "0100",
+   "1000"
+  ],
+  "obtained": [
+   "0100",
+   "0100",
+   "1000",
+   "1000",
+   "0100",
+   "0100",
+   "1000"
+  ],
+  "note": "",
+  "ladder": "ok"
+ },
+ {
+  "id": "3.5",
+  "title": "Enclavamiento RS con cadena de seguridad",
+  "status": "DEFECTO_MANUAL",
+  "expected": [
+   "0000",
+   "1000",
+   "1000",
+   "0000",
+   "0000"
+  ],
+  "obtained": [
+   "0000",
+   "0000",
+   "1000",
+   "1000",
+   "1000"
+  ],
+  "note": "El FBD \"simplificado\" (S=IN1, R=IN2) no es el del Ladder (SET=IN1·IN2, RESET=/IN1): con IN2 NA como R, pulsar el supervisor resetea.",
+  "ladder": "ok"
+ }
+]

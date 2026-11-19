@@ -58,29 +58,114 @@
     };
   }
 
-  /* Topological sort — Kahn's algorithm.
-     nodes[i].outputs contains Drawflow IDs (for FBD) or
-     direct targets (for Ladder after _buildOutputRefs).
-     idToIdx maps node.id → array index.                   */
-  function _topo(nodes, idToIdx) {
-    var n     = nodes.length;
-    var indeg = new Array(n).fill(0);
-    var adj   = nodes.map(function(){ return []; });
-    nodes.forEach(function(nd, j) {
-      nd.outputs.forEach(function(tid) {
-        var ti = idToIdx[tid];
-        if (ti !== undefined) { adj[j].push(ti); indeg[ti]++; }
-      });
-    });
-    var q = [], res = [];
-    indeg.forEach(function(d, i){ if (d === 0) q.push(i); });
-    while (q.length) {
-      var cur = q.shift(); res.push(cur);
-      adj[cur].forEach(function(nx){ if (--indeg[nx] === 0) q.push(nx); });
+  /* Orden de ejecución determinista.
+     ─────────────────────────────────
+     Mismo algoritmo que plcBuildExecOrder() (firmware) y buildExecOrder()
+     (simulador); los tres deben dar el mismo resultado (tests/t_order.js).
+       1. Aristas driver → consumidor según nd.in1 / nd.in2 (índices).
+          Un registro de 1 scan (SR cuyo R es NOT de su propio S) no
+          genera aristas hacia sus consumidores.
+       2. Cada ciclo (componente fuertemente conexa) se corta en UN pivote:
+          el bloque con memoria de menor ID (si no hay, el de menor ID).
+          Los consumidores del pivote dentro del ciclo se evalúan ANTES
+          que él y leen su valor del scan anterior.
+       3. Kahn eligiendo siempre el nodo listo de menor ID.
+     Devuelve índices de `nodes` en orden de ejecución.            */
+  var _MEMORY_TYPES = {ton:1,tof:1,tp:1,blink:1,ctu:1,ctd:1,sr:1,rs:1,r_trig:1,f_trig:1};
+
+  function _topo(nodes /*, idToIdx — ya no se usa: se leen in1/in2 */) {
+    var n = nodes.length, i, k;
+    if (n === 0) return [];
+    var byId = nodes.map(function(_, ix){ return ix; });
+    byId.sort(function(x, y){ return (nodes[x].id - nodes[y].id) || (x - y); });
+
+    function pred(ix, kk) {
+      var v = kk === 0 ? nodes[ix].in1 : nodes[ix].in2;
+      return (v === null || v === undefined) ? -1 : v;
     }
-    // Append any remaining (cycles — should not occur in valid programs)
-    for (var i = 0; i < n; i++) if (res.indexOf(i) === -1) res.push(i);
-    return res;
+    // Idioma heredado SR(S=X, R=NOT X): registro de 1 scan, no impone orden
+    var isPrev = nodes.map(function(nd, ix) {
+      if (nd.type !== 'sr') return false;
+      var a = pred(ix, 0), b = pred(ix, 1);
+      return a >= 0 && b >= 0 && nodes[b].type === 'not' &&
+             pred(b, 0) === a && pred(b, 1) < 0;
+    });
+    var edgeOn = [], edgeCut = [], before = [];
+    for (i = 0; i < n; i++) {
+      edgeOn.push([false, false]); edgeCut.push([false, false]); before.push({});
+      for (k = 0; k < 2; k++) {
+        var p = pred(i, k);
+        edgeOn[i][k] = (p >= 0 && p !== i && !isPrev[p]);
+      }
+    }
+
+    for (var guard = 0; guard < n * 2 + 2; guard++) {
+      var idx = new Array(n).fill(0), low = new Array(n).fill(0);
+      var on = new Array(n).fill(false), comp = new Array(n).fill(-1);
+      var stack = [], counter = 0, compCount = 0;
+      var visit = function(v) {
+        idx[v] = low[v] = ++counter; stack.push(v); on[v] = true;
+        for (var w = 0; w < n; w++) {
+          for (var kk = 0; kk < 2; kk++) {
+            if (!edgeOn[w][kk] || edgeCut[w][kk] || pred(w, kk) !== v) continue;
+            if (idx[w] === 0) { visit(w); if (low[w] < low[v]) low[v] = low[w]; }
+            else if (on[w] && idx[w] < low[v]) low[v] = idx[w];
+          }
+        }
+        if (low[v] === idx[v]) {
+          var x;
+          do { x = stack.pop(); on[x] = false; comp[x] = compCount; } while (x !== v);
+          compCount++;
+        }
+      };
+      for (i = 0; i < n; i++) if (idx[i] === 0) visit(i);
+
+      var cutAny = false;
+      for (var c = 0; c < compCount; c++) {
+        var size = 0;
+        for (i = 0; i < n; i++) if (comp[i] === c) size++;
+        if (size < 2) continue;
+        var pivot = -1, pivotAny = -1;
+        for (var a2 = 0; a2 < n; a2++) {
+          var ix2 = byId[a2];
+          if (comp[ix2] !== c) continue;
+          if (pivotAny < 0) pivotAny = ix2;
+          if (pivot < 0 && _MEMORY_TYPES[nodes[ix2].type]) pivot = ix2;
+        }
+        if (pivot < 0) pivot = pivotAny;
+        for (var x2 = 0; x2 < n; x2++) {
+          if (comp[x2] !== c) continue;
+          for (k = 0; k < 2; k++) {
+            if (!edgeOn[x2][k] || edgeCut[x2][k] || pred(x2, k) !== pivot) continue;
+            edgeCut[x2][k] = true; before[pivot][x2] = true; cutAny = true;
+          }
+        }
+      }
+      if (!cutAny) break;
+    }
+
+    for (var attempt = 0; attempt < 2; attempt++) {
+      var done = new Array(n).fill(false), order = [], stuck = false;
+      while (order.length < n) {
+        var pick = -1;
+        for (var a3 = 0; a3 < n && pick < 0; a3++) {
+          var j = byId[a3];
+          if (done[j]) continue;
+          var ok = true, key;
+          if (attempt === 0) for (key in before[j]) if (!done[+key]) { ok = false; break; }
+          for (k = 0; ok && k < 2; k++)
+            if (edgeOn[j][k] && !edgeCut[j][k] && !done[pred(j, k)]) ok = false;
+          if (ok) pick = j;
+        }
+        if (pick < 0) { stuck = true; break; }
+        order.push(pick); done[pick] = true;
+      }
+      if (!stuck) return order;
+      if (attempt === 1) {
+        for (var a4 = 0; a4 < n; a4++) { var j2 = byId[a4]; if (!done[j2]) { order.push(j2); done[j2] = true; } }
+        return order;
+      }
+    }
   }
 
   /* Build final IR envelope */
@@ -179,12 +264,16 @@
   /* For X inputs, the exact type depends on the physical index */
   function _xNodeType(index) {
     // input1 = X0, input2 = X1 (matches getInputPhysIndex in runtime)
+    if (index !== 0 && index !== 1)
+      throw new Error('X' + index + ' no existe: la placa tiene solo 2 entradas digitales (X0 y X1)');
     return (index === 0) ? 'input1' : 'input2';
   }
 
   /* For Y outputs, the exact type depends on the physical index */
   function _yNodeType(index) {
-    return ['output1','output2','output3','output4'][index] || 'output1';
+    var t = ['output1','output2','output3','output4'][index];
+    if (!t) throw new Error('Y' + index + ' no existe: la placa tiene solo 4 salidas digitales (Y0 a Y3)');
+    return t;
   }
 
   // =========================================================
@@ -451,26 +540,48 @@
       nd.scaleInMax  = nd.inMax;
       nd.scaleOutMin = nd.outMin;
       nd.scaleOutMax = nd.outMax;
+      nd._conns = [];   // [{tid, port}] — puerto de entrada del destino (0 = input_1, 1 = input_2)
       if (raw.outputs) {
         Object.keys(raw.outputs).forEach(function(p) {
           (raw.outputs[p].connections || []).forEach(function(c) {
             var tid = parseInt(String(c.node), 10);
-            if (!isNaN(tid)) nd.outputs.push(tid);
+            if (isNaN(tid)) return;
+            var m = /^input_(\d+)$/.exec(String(c.output || ''));
+            nd.outputs.push(tid);
+            nd._conns.push({tid: tid, port: m ? parseInt(m[1], 10) - 1 : -1});
           });
         });
       }
       nodes.push(nd);
     });
 
-    // Pass 2 — resolve in1/in2
-    nodes.forEach(function(nd) {
-      var drivers = [];
-      nodes.forEach(function(src, j) {
-        if (src.outputs.indexOf(nd.id) !== -1) drivers.push(j);
+    // Pass 2 — resolver in1/in2 por PUERTO (igual que parseProgram del firmware).
+    // Drivers en orden de ID ascendente: el reparto de respaldo
+    // (conexión sin puerto válido) es determinista.
+    var byId = nodes.map(function(_, ix){ return ix; })
+                    .sort(function(x, y){ return (nodes[x].id - nodes[y].id) || (x - y); });
+    var portWarnings = [];
+    byId.forEach(function(j) {
+      nodes[j]._conns.forEach(function(c) {
+        var t = idToIdx[c.tid];
+        if (t === undefined) return;
+        var tn = nodes[t];
+        if      (c.port === 0 && tn.in1 === null) tn.in1 = j;
+        else if (c.port === 1 && tn.in2 === null) tn.in2 = j;
+        else {
+          // Cable sin puerto válido o segundo cable al MISMO puerto: se usa el
+          // puerto libre (igual que el runtime) o se descarta, con advertencia.
+          var relocated = false;
+          if      (tn.in1 === null) { tn.in1 = j; relocated = true; }
+          else if (tn.in2 === null) { tn.in2 = j; relocated = true; }
+          if (c.port === 0 || c.port === 1)
+            portWarnings.push({ code: 'PORT_MULTI_DRIVER',
+              message: 'Nodo ' + tn.id + ', puerto ' + (c.port + 1) + ' con más de un cable; ' +
+                       (relocated ? 'el segundo pasa al otro puerto' : 'el segundo se ignora') });
+        }
       });
-      if (drivers.length >= 1) nd.in1 = drivers[0];
-      if (drivers.length >= 2) nd.in2 = drivers[1];
     });
+    nodes.forEach(function(nd){ delete nd._conns; });
 
     // Pass 3 — assign address:{area,index}
     _assignAddresses(nodes);
@@ -485,7 +596,9 @@
       symbolTable = PlcSymbolTable.formatForEnvelope(buildResult, ck, 'fbd');
     }
 
-    return _ir(nodes, _topo(nodes, idToIdx), 'fbd', symbolTable);
+    var irF = _ir(nodes, _topo(nodes, idToIdx), 'fbd', symbolTable);
+    if (portWarnings.length) { irF.meta.warnings = portWarnings; console.warn('[FBD Compiler] Warnings:', portWarnings); }
+    return irF;
   }
 
   // =========================================================
@@ -539,6 +652,7 @@
                     final writable node (= same as readIdx for M)
          created  — bool, true once the node has been emitted      */
     var varState = {};
+    var blockEnableSeen = {};   // blockIdx -> true si ya recibió una habilitación
 
     /* ── Helpers ──────────────────────────────────────────────── */
 
@@ -652,10 +766,100 @@
       return prev;
     }
 
+    /* ── Variables numéricas (Ladder v4) ───────────────────────
+       'AI1' (alias 'A0')  -> nodo analog1 (único)
+       'S<n>'              -> nodo scale definido en un renglón NUM
+       Mismo IR que el FBD: analog1 / scale / cmp / pwm.             */
+    var numState = {};
+    function _ival(v, def) {
+      if (v === undefined || v === null || v === '') return def;
+      var n = (typeof v === 'number') ? v : parseInt(String(v), 10);
+      return isNaN(n) ? def : Math.trunc(n);
+    }
+    function numName(n) {
+      n = String(n || '');
+      return (n === 'A0' || n === 'AI1') ? 'AI1' : n;
+    }
+    function numNode(name) {
+      name = numName(name);
+      if (numState[name] !== undefined) return numState[name];
+      if (name === 'AI1') {
+        var a = mkNode('analog1');
+        a.address = {area:'A', index:0};
+        numState[name] = emit(a);
+        return numState[name];
+      }
+      throw new Error('Variable numérica no definida: ' + name);
+    }
+    var pwmCoils = {};     // out -> [cond idx]  (PWM como bobina booleana)
+    var pwmSeen  = {};     // out -> true (PWM alimentado desde cadena numérica)
+
+    function compileNumRung(rung) {
+      var chain = rung.chain || [];
+      var prevName = null;
+      chain.forEach(function (b) {
+        var fn = String(b.fn || '').toUpperCase();
+        if (fn === 'AI1') { numNode('AI1'); prevName = 'AI1'; return; }
+        if (fn === 'SCALE') {
+          var sid = b.id;
+          if (!sid) throw new Error('SCALE sin id (S0, S1, ...)');
+          var src = numName(b.src || prevName);
+          if (!src) throw new Error('SCALE ' + sid + ': falta la entrada numérica');
+          var nd = numState[sid] !== undefined ? nodes[numState[sid]] : null;
+          if (!nd) { nd = mkNode('scale'); numState[sid] = emit(nd); }
+          nd.inMin  = _ival(b.inMin, 0);     nd.inMax  = _ival(b.inMax, 4095);
+          nd.outMin = _ival(b.outMin, 0);    nd.outMax = _ival(b.outMax, 100);
+          nd.scaleInMin = nd.inMin;   nd.scaleInMax = nd.inMax;
+          nd.scaleOutMin = nd.outMin; nd.scaleOutMax = nd.outMax;
+          nd.in1 = numNode(src);
+          prevName = sid;
+          return;
+        }
+        if (fn === 'PWM') {
+          var psrc = numName(b.src || prevName);
+          if (!psrc) throw new Error('PWM: falta la entrada numérica');
+          var o = _ival(b.out, 0);
+          if (o < 0 || o > 3) throw new Error('PWM: salida fuera de rango (0-3)');
+          var pn = mkNode('pwm');
+          pn.outIdx = o; pn.value = _ival(b.value, 0);
+          pn.in1 = numNode(psrc);
+          emit(pn);
+          if (pwmSeen[o]) numWarnings.push('PWM' + (o+1) + ': más de un bloque PWM para la misma salida');
+          pwmSeen[o] = true;
+          return;
+        }
+        throw new Error('Bloque numérico desconocido: ' + b.fn);
+      });
+    }
+    var numWarnings = [];
+
     /* Compile a single element (contact or block) into an IR node index.
        Returns the index of the output signal node.                       */
     function compileElement(elem) {
       var varName = elem.var || elem.id || '';
+
+      if (elem.type === 'EDGE') {
+        // [P] / [N]: flanco ascendente / descendente de la variable (1 scan)
+        var esrc = getOrCreateReadNode(varName);
+        var en = mkNode(elem.edge === 'N' ? 'f_trig' : 'r_trig');
+        en.in1 = esrc;
+        var eIdx = emit(en);
+        if (elem.negated) { var enn = mkNode('not'); enn.in1 = eIdx; return emit(enn); }
+        return eIdx;
+      }
+
+      if (elem.type === 'CMP') {
+        // Comparador: src (AI1 | S<n>) op valor-constante | src2
+        var cn = mkNode('cmp');
+        cn.op = elem.op || '>';
+        if (['>','<','>=','<=','==','!='].indexOf(cn.op) < 0)
+          throw new Error('CMP: operador no válido: ' + cn.op);
+        cn.in1 = numNode(elem.src);
+        if (elem.src2) cn.in2 = numNode(elem.src2); else cn.value = _ival(elem.value, 0);
+        var cIdx = emit(cn);
+        if (elem.negated) { var cnn = mkNode('not'); cnn.in1 = cIdx; return emit(cnn); }
+        return cIdx;
+      }
 
       if (elem.type === 'CONTACT') {
         var readIdx = getOrCreateReadNode(varName);
@@ -681,7 +885,7 @@
         // Resolve the runtime node type from elem.blockType.
         // Fallback: area T → 'ton', area C → 'ctu' (pre-blockType compat).
         var nodeTypeMap = {
-          TON: 'ton', TOF: 'tof', TP: 'tp',
+          TON: 'ton', TOF: 'tof', TP: 'tp', BLINK: 'blink',
           CTU: 'ctu', CTD: 'ctd'
         };
         var blockNodeType = nodeTypeMap[elem.blockType] || null;
@@ -781,9 +985,21 @@
         // Compile the block element (creates/retrieves the IR node)
         var blockIdx = compileElement(seg.block);
 
-        // Wire the block's IN signal = the enable condition
+        // Wire the block's IN signal = the enable condition.
+        // Si el mismo bloque aparece en varias ramas paralelas (p.ej. la
+        // decompilación de un temporizador alimentado por OR), sus habilitaciones
+        // se combinan con OR; antes la última rama pisaba a las anteriores.
         if (enableIdx !== null && blockIdx !== null) {
-          nodes[blockIdx].in1 = enableIdx;
+          var prevEn = nodes[blockIdx].in1;
+          if (prevEn !== null && prevEn !== undefined && prevEn !== enableIdx && blockEnableSeen[blockIdx]) {
+            var orEn = mkNode('or');
+            orEn.in1 = prevEn;
+            orEn.in2 = enableIdx;
+            nodes[blockIdx].in1 = emit(orEn);
+          } else {
+            nodes[blockIdx].in1 = enableIdx;
+          }
+          blockEnableSeen[blockIdx] = true;
         }
 
         // The accumulated condition after this block = block's Q output
@@ -820,36 +1036,25 @@
        The SR node's in1/in2 are connected in Pass 3.              */
     function wireCoil(coil, conditionIdx) {
       if (conditionIdx === null) return;
+      if (coil.type === 'PWM') {
+        var po = _ival(coil.out, 0);
+        if (!pwmCoils[po]) pwmCoils[po] = [];
+        pwmCoils[po].push(conditionIdx);
+        return;
+      }
       var varName = coil.var;
       var addr    = parseAddr(varName);
       var mode    = coil.mode || 'NORMAL';
+      if (coil.dom === 'R') { getOrCreateReadNode(varName); varState[varName].resetDominant = true; }
 
-      if (addr.area === 'Y') {
-        // Digital output — direct connection
-        var outNd = mkNode(_yNodeType(addr.index));
-        outNd.outIdx  = addr.index;
-        outNd.in1     = conditionIdx;
-        outNd.address = {area:'Y', index:addr.index};
-        emit(outNd);
-
-      } else if (addr.area === 'M') {
-        // Ensure the SR node exists
+      if (addr.area === 'Y' || addr.area === 'M') {
+        // Un único nodo por variable: los contactos de Y leen la bobina.
         getOrCreateReadNode(varName);
         var vs = varState[varName];
-
-        if (mode === 'SET') {
-          vs.setList.push(conditionIdx);
-        } else if (mode === 'RESET') {
-          vs.resetList.push(conditionIdx);
-        } else {
-          // NORMAL M coil: condition directly drives SR set input,
-          // and implicit RESET when condition is false.
-          // Model: SR.in1 = condition (set when true),
-          //        SR.in2 = NOT(condition) effectively not needed
-          // since SR is set-dominant. We treat NORMAL M as SET only
-          // for simplicity — the SR holds state.
-          vs.setList.push(conditionIdx);
-        }
+        if (!vs.coils) vs.coils = [];
+        if      (mode === 'SET')   vs.setList.push(conditionIdx);
+        else if (mode === 'RESET') vs.resetList.push(conditionIdx);
+        else                       vs.coils.push(conditionIdx);   // bobina normal
 
       } else if (addr.area === 'T') {
         // Timer block driven by condition: condition → ton.in1
@@ -857,14 +1062,36 @@
         nodes[varState[varName].readIdx].in1 = conditionIdx;
 
       } else if (addr.area === 'C') {
-        // Counter block driven by condition: condition → ctu.in1
         getOrCreateReadNode(varName);
-        nodes[varState[varName].readIdx].in1 = conditionIdx;
+        if (mode === 'RESET' || mode === 'LOAD') {
+          // CTU: reset; CTD: carga (LD) -> puerto 2
+          var vc = varState[varName];
+          if (!vc.in2List) vc.in2List = [];
+          vc.in2List.push(conditionIdx);
+        } else {
+          // Counter block driven by condition: condition → ctu.in1
+          nodes[varState[varName].readIdx].in1 = conditionIdx;
+        }
       }
     }
 
+    // ── Pass 0: renglones numéricos (AI1 / SCALE / PWM) ───────
+    //  Primero los SCALE (para que CMP/PWM los referencien en cualquier orden)
+    rungs.forEach(function(rung) {
+      if (rung && rung.kind === 'NUM') {
+        (rung.chain || []).forEach(function (b) {
+          if (String(b.fn || '').toUpperCase() === 'SCALE' && b.id && numState[b.id] === undefined)
+            numState[b.id] = emit(mkNode('scale'));
+        });
+      }
+    });
+    rungs.forEach(function(rung) {
+      if (rung && rung.kind === 'NUM') compileNumRung(rung);
+    });
+
     // ── Pass 1+2: compile all rungs ───────────────────────────
     rungs.forEach(function(rung) {
+      if (rung && rung.kind === 'NUM') return;
       var condIdx = compileRungCondition(rung);
       if (condIdx === null) return; // empty rung — skip
 
@@ -873,23 +1100,74 @@
       });
     });
 
-    // ── Pass 3: wire SET/RESET accumulators to SR nodes ────────
+    // ── Pass 3: resolver bobinas de Y y M ──────────────────────
+    //  • Solo bobinas normales:  Y -> output.in1 = condición (la última gana)
+    //                            M -> RS(S=c, R=NOT c): sigue a la condición
+    //  • Con SET/RESET:          SR (RS si solo hay RESET) que retiene;
+    //                            en Y alimenta al nodo de salida.
+    //  Mezclar bobina normal con SET/RESET en la misma variable es ambiguo:
+    //  la normal se trata como SET y se emite una advertencia.
+    var compileWarnings = [];
     Object.keys(varState).forEach(function(varName) {
       var vs   = varState[varName];
       var addr = _parseVarAddr(varName);
-      if (!addr || addr.area !== 'M') return;
+      if (!addr || (addr.area !== 'M' && addr.area !== 'Y')) return;
+      var coils = vs.coils || [];
+      var hasLatch = vs.setList.length > 0 || vs.resetList.length > 0;
 
-      var srNd = nodes[vs.readIdx];
+      if (coils.length > 1)
+        compileWarnings.push(varName + ': ' + coils.length + ' bobinas normales; gana la última del programa');
 
-      // Build OR of all SET conditions → in1 of SR
-      if (vs.setList.length > 0) {
-        srNd.in1 = buildORChain(vs.setList);
+      if (!hasLatch) {
+        if (coils.length === 0) return;                  // variable solo leída
+        var c = coils[coils.length - 1];
+        if (addr.area === 'Y') {
+          nodes[vs.readIdx].in1 = c;
+        } else {
+          var nd = nodes[vs.readIdx];
+          nd.type = 'rs';                                // RS(S=c, R=NOT c) == c
+          nd.in1  = c;
+          var nn  = mkNode('not'); nn.in1 = c;
+          nd.in2  = emit(nn);
+        }
+        return;
       }
 
-      // Build OR of all RESET conditions → in2 of SR
-      if (vs.resetList.length > 0) {
-        srNd.in2 = buildORChain(vs.resetList);
+      if (coils.length > 0) {
+        compileWarnings.push(varName + ': mezcla bobina normal con SET/RESET; la normal se trata como SET');
+        vs.setList = vs.setList.concat(coils);
       }
+      var latch;
+      if (addr.area === 'M') {
+        latch = nodes[vs.readIdx];
+      } else {
+        latch = mkNode('sr');
+        nodes[vs.readIdx].in1 = emit(latch);
+      }
+      if (vs.setList.length > 0)   latch.in1 = buildORChain(vs.setList);
+      if (vs.resetList.length > 0) latch.in2 = buildORChain(vs.resetList);
+      if (vs.setList.length === 0 || vs.resetDominant) latch.type = 'rs';
+      // El firmware y el simulador reinterpretan SR(S=X, R=NOT X) como un registro de 1 scan (NT_PREV, idioma
+      // heredado). Un SET sobre la condición X con un RESET sobre NOT X es un latch ordinario que sigue a X sin
+      // retardo; como S y R nunca valen 1 a la vez, RS(S=X, R=NOT X) es idéntico y no dispara ese idioma.
+      if (latch.type === 'sr' && latch.in1 !== null && latch.in1 !== undefined && latch.in2 !== null && latch.in2 !== undefined) {
+        var rn = nodes[latch.in2];
+        if (rn && rn.type === 'not' && rn.in1 === latch.in1 && (rn.in2 === null || rn.in2 === undefined)) latch.type = 'rs';
+      }
+    });
+
+    // Contadores: reset (CTU) / carga (CTD) por bobina -> puerto 2
+    Object.keys(varState).forEach(function (vn) {
+      var vs2 = varState[vn];
+      if (vs2.in2List && vs2.in2List.length) nodes[vs2.readIdx].in2 = buildORChain(vs2.in2List);
+    });
+    // PWM como bobina booleana (condición -> 4095 / 0)
+    Object.keys(pwmCoils).forEach(function (o) {
+      var pb = mkNode('pwm');
+      pb.outIdx = parseInt(o, 10);
+      pb.in1 = buildORChain(pwmCoils[o]);
+      emit(pb);
+      if (pwmSeen[o]) numWarnings.push('PWM' + (parseInt(o,10)+1) + ': bobina PWM y bloque PWM numérico sobre la misma salida');
     });
 
     // ── Pass 4: build outputs[] (needed by _topo) ─────────────
@@ -922,21 +1200,33 @@
 
     // ── Pass 7: validation warnings ───────────────────────────
     var warnings = _validateLadderIR(nodes, rungs);
-    if (typeof PlcSymbolTable !== 'undefined' && warnings.length > 0) {
+    compileWarnings.forEach(function(w){ warnings.push({ code: 'COIL_CONFLICT', message: w }); });
+    numWarnings.forEach(function(w){ warnings.push({ code: 'PWM_CONFLICT', message: w }); });
+    if (warnings.length > 0) {
       console.warn('[Ladder Compiler] Warnings:', warnings);
     }
 
-    return _ir(nodes, order, 'ladder', symbolTable);
+    var irOut = _ir(nodes, order, 'ladder', symbolTable);
+    irOut.meta.warnings = warnings;
+    return irOut;
   }
 
   /* Canonical key for a Ladder program.
      Built from sorted rung IDs + element vars — stable fingerprint. */
   function _ladderCanonicalKey(rungs) {
+    function ek(e) {
+      if (!e) return '';
+      if (e.type === 'EDGE') return e.edge + '@' + (e.var||'') + (e.negated?'!':'');
+      if (e.type === 'CMP')  return 'CMP' + (e.op||'>') + (e.src||'') + (e.src2||e.value||0) + (e.negated?'!':'');
+      return (e.var||e.id||'') + (e.negated?'!':'');
+    }
     return rungs.map(function(r) {
+      if (r.kind === 'NUM')
+        return (r.id||'') + '[NUM:' + (r.chain||[]).map(function(b){ return (b.fn||'') + (b.id||'') + (b.out!==undefined?b.out:''); }).join('>') + ']';
       var pathStrs = (r.paths||[]).map(function(p) {
-        return (p||[]).map(function(e){ return (e.var||e.id||'') + (e.negated?'!':''); }).join(',');
+        return (p||[]).map(ek).join(',');
       }).join('|');
-      var coilStrs = (r.outputs||[]).map(function(c){ return c.var+':'+c.mode; }).join(',');
+      var coilStrs = (r.outputs||[]).map(function(c){ return (c.type==='PWM' ? 'PWM'+c.out : c.var) + ':' + c.mode; }).join(',');
       return (r.id||'') + '[' + pathStrs + '→' + coilStrs + ']';
     }).join(';');
   }
@@ -949,7 +1239,7 @@
     rungs.forEach(function(rung) {
       (rung.paths||[]).forEach(function(path) {
         (path||[]).forEach(function(elem) {
-          if (elem && (elem.type==='CONTACT' || elem.type==='BLOCK')) {
+          if (elem && (elem.type==='CONTACT' || elem.type==='EDGE')) {
             var v = elem.var || elem.id || '';
             if (v) readVars[v] = true;
           }
@@ -961,6 +1251,15 @@
     rungs.forEach(function(rung) {
       (rung.outputs||[]).forEach(function(coil) {
         if (coil.var) writtenVars[coil.var] = true;
+      });
+      // un BLOCK define su propia variable (su Q puede leerse con contactos)
+      (rung.paths||[]).forEach(function(path) {
+        (path||[]).forEach(function(elem) {
+          if (elem && elem.type === 'BLOCK') {
+            var bv = elem.id || elem.var || '';
+            if (bv) writtenVars[bv] = true;
+          }
+        });
       });
     });
     // Warn if a non-X variable is read but never written
@@ -1003,6 +1302,8 @@
     }
     // LadderCompiler is exposed on the LadderProgram namespace
     var ir = LadderProgram.LadderCompiler.compileLadderToIR(program);
+    // Mismo orden de ejecución que usan el firmware y el simulador
+    ir.order = _topo(ir.program.nodes);
 
     // Synthesise drawflow for the runtime (same as compileLadder does)
     if (!ir.drawflow) {

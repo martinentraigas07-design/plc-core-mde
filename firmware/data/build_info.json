@@ -1,0 +1,135 @@
+{
+ "generator": "tools/build_web.js",
+ "maxNameWithSlash": 31,
+ "files": [
+  {
+   "name": "LICENSE.txt",
+   "bytes": 6428,
+   "sha256": "9f5fdac62214584f",
+   "from": "LICENSE.txt"
+  },
+  {
+   "name": "about.html",
+   "bytes": 8464,
+   "sha256": "b1464c53a63bc3a0",
+   "from": "about.html"
+  },
+  {
+   "name": "compiler.js",
+   "bytes": 57653,
+   "sha256": "697c3ced7bde1ad9",
+   "from": "js/compiler/compiler.js"
+  },
+  {
+   "name": "drawflow.min.css",
+   "bytes": 1910,
+   "sha256": "57e5b37f72d95f97",
+   "from": "drawflow.min.css"
+  },
+  {
+   "name": "drawflow.min.js",
+   "bytes": 46190,
+   "sha256": "caf8c4f15b75e271",
+   "from": "drawflow.min.js"
+  },
+  {
+   "name": "editor.js",
+   "bytes": 6464,
+   "sha256": "6070790f08268b7e",
+   "from": "editor.js"
+  },
+  {
+   "name": "index.html",
+   "bytes": 63785,
+   "sha256": "93d8d626870e764b",
+   "from": "index.html"
+  },
+  {
+   "name": "ir_check.js",
+   "bytes": 10736,
+   "sha256": "3ec35a26737e9f1e",
+   "from": "js/compiler/ir_check.js"
+  },
+  {
+   "name": "ladder.html",
+   "bytes": 126893,
+   "sha256": "fa51ccdfcca7bcc1",
+   "from": "ladder.html"
+  },
+  {
+   "name": "ladder_ast.js",
+   "bytes": 26468,
+   "sha256": "8bfef15a3ccaa8ec",
+   "from": "js/compiler/ladder_ast.js"
+  },
+  {
+   "name": "ladder_decompiler.js",
+   "bytes": 41261,
+   "sha256": "61e9dd765d3da3b5",
+   "from": "js/compiler/ladder_decompiler.js"
+  },
+  {
+   "name": "ladder_program.js",
+   "bytes": 37931,
+   "sha256": "a73898c9fe25661f",
+   "from": "js/compiler/ladder_program.js"
+  },
+  {
+   "name": "manual.html",
+   "bytes": 74294,
+   "sha256": "a0d3df1e2916666c",
+   "from": "manual.html"
+  },
+  {
+   "name": "memory_panel.js",
+   "bytes": 7011,
+   "sha256": "81b31458bd140d76",
+   "from": "js/ui/memory_panel.js"
+  },
+  {
+   "name": "monitor.html",
+   "bytes": 45399,
+   "sha256": "4e0feafe17baf447",
+   "from": "monitor.html"
+  },
+  {
+   "name": "plc_api.js",
+   "bytes": 1839,
+   "sha256": "98adfb75d5927f76",
+   "from": "js/api/plc_api.js"
+  },
+  {
+   "name": "plc_api_esp.js",
+   "bytes": 3592,
+   "sha256": "a4b5d52bf7978e49",
+   "from": "js/api/plc_api_esp.js"
+  },
+  {
+   "name": "plc_project.js",
+   "bytes": 22421,
+   "sha256": "70d8f509528db2b5",
+   "from": "js/project/plc_project.js"
+  },
+  {
+   "name": "program.html",
+   "bytes": 88366,
+   "sha256": "c601272697172c5a",
+   "from": "program.html"
+  },
+  {
+   "name": "style.css",
+   "bytes": 6967,
+   "sha256": "cf425fb1274f1184",
+   "from": "style.css"
+  },
+  {
+   "name": "symbol_table.js",
+   "bytes": 13818,
+   "sha256": "5584f4c0ff5c2310",
+   "from": "js/compiler/symbol_table.js"
+  }
+ ],
+ "totalBytes": 697890,
+ "estimatedSpiffsBytes": 725248,
+ "estimateNote": "estimación conservadora (páginas de 256 B); medir con SPIFFS.usedBytes() en el equipo"
+}

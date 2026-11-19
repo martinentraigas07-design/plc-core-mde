@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<!-- ══════════════════════════════ -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PLC-CORE-MDE — Programación</title>
@@ -56,6 +57,9 @@
   .mode-badge.stop { color:var(--accent); border-color:var(--accent); background:rgba(245,166,35,0.08); }
 
   /* Control buttons */
+  .proj-name { background:var(--bg3,#0f1a24); color:var(--text,#cfe3f2); border:1px solid var(--border2,#2a3a4a); border-radius:2px; padding:4px 7px; font-family:var(--font-mono); font-size:11px; width:150px; }
+  .proj-msg { font-family:var(--font-mono); font-size:11px; padding:6px 14px; border-bottom:1px solid var(--border2,#2a3a4a); white-space:pre-wrap; }
+  .proj-msg.ok { color:var(--green,#00e676); } .proj-msg.warn { color:var(--accent,#f5a623); } .proj-msg.err { color:var(--red,#ff3d5a); }
   .ctrl-btn {
     display:flex; align-items:center; gap:6px;
     padding:6px 14px;
@@ -127,6 +131,11 @@
   .pal-btn.timer  { border-color:rgba(255,215,64,0.3); color:var(--yellow); }
   .pal-btn.analog { border-color:rgba(200,100,200,0.4); color:#c882e0; }
 
+
+  .editor-wrap { display:flex !important; }
+  .mem-sidebar { width:0; overflow:hidden; transition:width 0.25s; background:var(--bg2); border-left:1px solid var(--border); flex-shrink:0; overflow-y:auto; }
+  .mem-sidebar.open { width:210px; }
+  #editor { flex:1 !important; }
   /* Editor area */
   .editor-wrap {
     flex:1;
@@ -235,11 +244,20 @@
   <button class="ctrl-btn run"  onclick="plcRun()">▶ RUN</button>
   <button class="ctrl-btn stop" onclick="plcStop()">■ STOP</button>
   <button class="ctrl-btn"      onclick="plcReload()">↺ RELOAD</button>
-  <button class="ctrl-btn save" onclick="saveProgram()">💾 GUARDAR</button>
-  <button class="ctrl-btn" onclick="openTags()" title="Editar etiquetas de IO">🏷 TAGS</button>
+  <button class="ctrl-btn save" id="btn-save-plc" onclick="saveProgram()" title="Compilar, validar y enviar el programa al PLC">💾 Guardar en PLC</button>
   <div class="topbar-sep"></div>
-  <a href="/"><button class="ctrl-btn">⌂ INICIO</button></a>
+  <input id="proj-name" class="proj-name" type="text" maxlength="48" value="Proyecto FBD" title="Nombre del proyecto (se usa en el archivo .plc)" aria-label="Nombre del proyecto">
+  <button class="ctrl-btn" id="btn-export" onclick="exportProject()" title="Descargar el proyecto completo como archivo .plc (no toca el PLC)">⬇ Exportar proyecto</button>
+  <input type="file" id="proj-file" accept=".plc,.json,application/json" style="display:none" onchange="importProject(this)">
+  <button class="ctrl-btn" id="btn-import" onclick="document.getElementById('proj-file').click()" title="Abrir un archivo .plc en este editor (no guarda nada en el PLC)">⬆ Importar proyecto</button>
+  <div class="topbar-sep"></div>
+  <button class="ctrl-btn" onclick="openTags()" title="Editar etiquetas de IO">🏷 TAGS</button>
+  <button class="ctrl-btn" id="mem-toggle-btn" onclick="toggleMemPanel()" title="Panel de memoria PLC">📊 MEM</button>
+  <div class="topbar-sep"></div>
+  <a href="index.html"><button class="ctrl-btn">⌂ INICIO</button></a>
 </div>
+
+<div id="proj-msg" class="proj-msg" role="status" aria-live="polite" style="display:none"></div>
 
 <!-- PALETTE -->
 <div class="palette">
@@ -283,6 +301,14 @@
 <!-- DRAWFLOW EDITOR -->
 <div class="editor-wrap">
   <div id="editor"></div>
+  <div class="mem-sidebar" id="mem-sidebar">
+    <div style="padding:7px 10px 5px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-shrink:0;background:var(--panel);">
+      <div style="width:6px;height:6px;border-radius:50%;background:var(--accent2);"></div>
+      <span style="font-family:var(--font-head);font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--text-dim);flex:1;">MEMORIA PLC</span>
+      <button onclick="toggleMemPanel()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;">✕</button>
+    </div>
+    <div id="mem-panel-mount" style="overflow-y:auto;"></div>
+  </div>
 </div>
 
 <!-- STATUS BAR -->
@@ -294,6 +320,12 @@
   <span>PLC-CORE-MDE v3 · IEC 61131-3 FBD</span>
 </div>
 
+<script src="plc_api.js"></script>
+<script src="plc_api_esp.js"></script>
+<script src="compiler.js"></script>
+<script src="symbol_table.js"></script>
+<script src="plc_project.js"></script>
+<script src="memory_panel.js"></script>
 <script src="drawflow.min.js"></script>
 <script src="editor.js"></script>
 <script>
@@ -314,19 +346,172 @@ function plcRun()   { fetch('/plc/run').then(()=>updateStatus()); }
 function plcStop()  { fetch('/plc/stop').then(()=>updateStatus()); }
 function plcReload(){ fetch('/plc/reload').then(()=>updateStatus()); }
 
-function saveProgram() {
-  const data = editor.export();
-  fetch('/save', {
-    method:'POST',
-    body: JSON.stringify(data)
-  }).then(r=>r.text()).then(t=>{
-    fetch('/plc/reload').then(()=>updateStatus());
-    // Brief flash on save button
-    const btn = document.querySelector('.ctrl-btn.save');
-    btn.style.boxShadow = '0 0 20px rgba(245,166,35,0.6)';
-    setTimeout(()=> btn.style.boxShadow='', 600);
-  });
+/* Compila y valida SIN efectos: ni red, ni alert, ni cambios en la pantalla.
+   Lo usan Guardar en PLC y Exportar proyecto, así ambos pasan por exactamente el mismo compilador. */
+function buildFbdEnvelope() {
+  // ── STEP 1: Capture the visual model (Drawflow graph) ──────
+  var fbd;
+  try {
+    fbd = editor.export();
+  } catch(e) {
+    return { ok:false, stage:'export', message:'Error exportando diagrama: ' + e.message };
+  }
+
+  // ── STEP 2: Compile FBD → enriched IR ──────────────────────
+  var ir;
+  try {
+    ir = PlcCompiler.compileProject(fbd, 'fbd');
+  } catch(e) {
+    return { ok:false, stage:'compile', message:'Error de compilacion: ' + e.message, fbd:fbd };
+  }
+
+  // ── STEP 3: Validate IR before sending ─────────────────────
+  // Structural checks: no address collisions, no out-of-range indices, no self-loops.
+  // CRITICAL errors block save; warnings are logged to the console.
+  if (typeof PlcSymbolTable !== 'undefined') {
+    var validation = PlcSymbolTable.validate(ir.program.nodes);
+    if (!validation.ok) {
+      var errMsg = validation.errors.map(function(e) {
+        return e.code + ': ' + e.message;
+      }).join('\n');
+      console.error('[Bloque1] IR validation errors:', validation.errors);
+      return { ok:false, stage:'validate', message:'Errores de compilación (guardar bloqueado):\n\n' + errMsg, fbd:fbd, ir:ir };
+    }
+    if (validation.warnings.length > 0) {
+      console.warn('[Bloque1] IR validation warnings:', validation.warnings);
+    }
+  } else {
+    console.warn('[FBD] PlcSymbolTable not available — skipping IR validation');
+  }
+
+  // ── STEP 4: Build the program envelope ─────────────────────
+  // format: 'plc_program' v2 — fbd (UI restore), ir (runtime), symbolTable, and
+  // drawflow at top level: parseProgram() reads doc["drawflow"]["Home"]["data"] — MUST NOT be removed.
+  var symbolTable = (ir.meta && ir.meta.symbolTable) || null;
+  var envelope = {
+    format:      'plc_program',
+    version:     2,
+    fbd:         fbd,
+    ir:          ir,
+    drawflow:    fbd.drawflow,    // runtime compat — MUST NOT be removed
+    symbolTable: symbolTable
+  };
+  return { ok:true, fbd:fbd, ir:ir, symbolTable:symbolTable, envelope:envelope };
 }
+
+function saveProgram() {
+  var b = buildFbdEnvelope();
+  if (!b.ok) { alert(b.message); return; }
+  var ir = b.ir, symbolTable = b.symbolTable, envelope = b.envelope;
+
+  // Un proyecto recién importado NO se guarda en el PLC sin confirmación explícita.
+  if (window.__projImportPending) {
+    var nm = window.__projImportPending.name;
+    if (!confirm('Vas a REEMPLAZAR el programa guardado en ' + PlcProject.targetName() + ' por el proyecto importado «' + nm + '».\n\n¿Continuar?')) {
+      projMsg('warn', 'Guardado cancelado. El programa que estaba en ' + PlcProject.targetName() + ' no se modificó.');
+      return;
+    }
+  }
+
+  // ── STEP 5: POST to /save, reload runtime ──────────────────
+  PlcApi.saveProgram(envelope).then(function() {
+    return PlcApi.plcReload();
+  }).then(function() {
+    updateStatus();
+    window.__projImportPending = null;
+    var btn = document.querySelector('.ctrl-btn.save');
+    if (btn) {
+      btn.style.boxShadow = '0 0 20px rgba(245,166,35,0.6)';
+      setTimeout(function(){ btn.style.boxShadow = ''; }, 600);
+    }
+    var sb = document.getElementById('sb-nodes');
+    if (sb) {
+      var symCount = symbolTable ? symbolTable.symbols.length : 0;
+      sb.textContent = 'NODOS: ' + ir.program.nodes.length +
+                       ' | SÍMBOLOS: ' + symCount + (PlcProject.isEmbedded() ? ' | IR v3 guardado en el PLC' : ' | IR v3 enviado al PLC simulado');
+    }
+    projMsg('ok', PlcProject.isEmbedded()
+      ? 'Programa compilado, validado y guardado en el PLC (' + ir.program.nodes.length + ' nodos).'
+      : 'Programa compilado y validado (' + ir.program.nodes.length + ' nodos). Enviado al PLC SIMULADO: no se guardó en ningún hardware.');
+    if (symbolTable) {
+      console.info('[Bloque1] Symbol table:', symbolTable.stats);
+      console.info('[Bloque1] Canonical key:', symbolTable.canonicalKey);
+    }
+  }).catch(function(e) { alert('Error al guardar: ' + e.message); });
+}
+
+/* ═══════════ Proyectos portables .plc ═══════════ */
+function projMsg(kind, text) {
+  var el = document.getElementById('proj-msg'); if (!el) return;
+  el.className = 'proj-msg ' + kind; el.textContent = text; el.style.display = text ? 'block' : 'none';
+}
+function projName() { var el = document.getElementById('proj-name'); return PlcProject.sanitizeName(el ? el.value : ''); }
+
+/* Exportar: descarga un .plc con el diagrama editable + el IR compilado (si compila). No toca el PLC. */
+function exportProject() {
+  var b = buildFbdEnvelope();
+  var fbd = b.fbd;
+  if (!fbd) { projMsg('err', 'No se pudo exportar: ' + b.message); return null; }
+  var nodes = Object.keys((fbd.drawflow && fbd.drawflow.Home && fbd.drawflow.Home.data) || {}).length;
+  if (!nodes) { projMsg('err', 'No hay nada que exportar: el diagrama está vacío.'); return null; }
+  var name = projName();
+  var proj = PlcProject.build({ name:name, editor:'fbd', fbd:fbd, ir:b.ok ? b.ir : null, origin:PlcProject.isEmbedded() ? 'esp32' : 'simulator' });
+  var text = PlcProject.serialize(proj), fname = PlcProject.fileNameFor(name);
+  PlcProject.download(fname, text);
+  projMsg(b.ok ? 'ok' : 'warn', 'Proyecto exportado: ' + fname + ' (' + nodes + ' nodos, ' + text.length + ' bytes).' +
+    (b.ok ? '' : '\nAviso: el diagrama aún no compila (' + b.message.split('\n')[0] + '); se exportó sin IR. Se podrá abrir y corregir.'));
+  return text;
+}
+
+/* Importar: leer → validar → confirmar → reconstruir el editor. Nunca toca el PLC: para guardar hay que pulsar «Guardar en PLC». */
+function importProject(inp) {
+  var f = inp && inp.files && inp.files[0];
+  if (inp) { try { inp.value = ''; } catch(e) {} }
+  if (!f) return Promise.resolve(false);
+  return PlcProject.readFile(f).then(function(text) { return importProjectText(text, f.name); })
+    .catch(function(e) { projMsg('err', 'No se pudo importar: ' + e.message + '\nEl editor y el programa del PLC siguen sin cambios.'); return false; });
+}
+function importProjectText(text, fname) {
+  var r = PlcProject.parse(text);
+  if (!r.ok) { projMsg('err', 'No se pudo importar ' + (fname || 'el archivo') + ':\n- ' + r.errors.join('\n- ') + '\nEl editor y el programa del PLC siguen sin cambios.'); return false; }
+  var P = r.project;
+  if (P.editor !== 'fbd') {
+    projMsg('err', 'El proyecto «' + P.name + '» fue hecho en Ladder (' + r.summary.count + ' renglones). Abrilo con el editor Ladder (ladder.html → Importar proyecto). Nada fue modificado.');
+    return false;
+  }
+  var hasWork = Object.keys((editor.export().drawflow.Home.data) || {}).length > 0;
+  if (!confirm('Importar el proyecto «' + P.name + '» (FBD, ' + r.summary.count + ' nodos)?' + (hasWork ? '\n\nEsto REEMPLAZA el diagrama abierto en el editor.' : '') +
+      '\nNo se guarda nada en el PLC hasta que presiones «Guardar en PLC».')) {
+    projMsg('warn', 'Importación cancelada. Nada fue modificado.'); return false;
+  }
+  var backup = editor.export();
+  try { editor.import(P.diagram.fbd); }
+  catch(e) {
+    try { editor.import(backup); } catch(e2) {}
+    projMsg('err', 'El diagrama no se pudo reconstruir (' + e.message + '). Se restauró el diagrama anterior; el PLC no fue modificado.'); return false;
+  }
+  var nm = document.getElementById('proj-name'); if (nm) nm.value = P.name;
+  // Compilación equivalente: se recompila el diagrama importado y se compara con el IR que trae el archivo.
+  var b = buildFbdEnvelope(), notes = r.warnings.slice(), kind = 'ok';
+  if (!b.ok) { kind = 'warn'; notes.push('El diagrama importado no compila todavía: ' + b.message.split('\n')[0]); }
+  else if (P.ir) {
+    if (PlcProject.irKey(P.ir) === PlcProject.irKey(b.ir)) notes.push('La compilación coincide con la del archivo.');
+    else { kind = 'warn'; notes.push('La compilación NO coincide con el IR del archivo (se usará siempre la recompilada).'); }
+  }
+  if (r.warnings.length) kind = 'warn';
+  window.__projImportPending = { name: P.name };
+  var sb = document.getElementById('sb-nodes'); if (sb) sb.textContent = 'NODOS: ' + r.summary.count + ' | proyecto importado: falta Guardar en PLC';
+  projMsg(kind, 'Proyecto «' + P.name + '» importado (' + r.summary.count + ' nodos).\n' + notes.join('\n') + '\nTodavía NO está guardado en ' + PlcProject.targetName() + ': presioná «Guardar en PLC» para validarlo y enviarlo.');
+  return true;
+}
+
+/* En el simulador no hay PLC físico: el botón lo aclara. */
+window.addEventListener('DOMContentLoaded', function() {
+  if (!PlcProject.isEmbedded()) {
+    var sv = document.getElementById('btn-save-plc');
+    if (sv) { sv.textContent = '💾 Guardar en PLC (simulado)'; sv.title = 'Simulador: envía el programa al PLC simulado, no a hardware'; }
+  }
+});
 
 updateStatus();
 setInterval(updateStatus, 3000);
@@ -403,5 +588,180 @@ function saveTags() {
   }).then(()=>{ closeTags(); alert('Tags guardados'); });
 }
 </script>
+<script>
+var _memPanel=null, _memOpen=false;
+function toggleMemPanel(){
+  var sb=document.getElementById('mem-sidebar'), btn=document.getElementById('mem-toggle-btn');
+  _memOpen=!_memOpen; sb.classList.toggle('open',_memOpen);
+  if(_memOpen&&!_memPanel){
+    _memPanel=new MemoryPanel(document.getElementById('mem-panel-mount'),{pollMs:250,xCount:8,yCount:8,mCount:16,tCount:8,aCount:4});
+    _memPanel.start();
+  } else if(!_memOpen&&_memPanel){ _memPanel.stop(); _memPanel=null; }
+  if(btn){btn.style.borderColor=_memOpen?'var(--accent2)':'';btn.style.color=_memOpen?'var(--accent2)':'';btn.style.background=_memOpen?'rgba(58,180,242,0.1)':'';}
+}
+</script>
+<script>
+// ── loadProgram: fetch /load from ESP32 ─────────────────────
+// Returns the parsed JSON object, or null on any failure.
+// The server returns {} when no program has been saved yet.
+async function loadProgram() {
+  try {
+    var res = await fetch('/load');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var raw = await res.text();
+    if (!raw || raw.trim() === '') {
+      console.warn('[FBD] /load returned empty response');
+      return null;
+    }
+    var parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch(e) {
+      console.error('[FBD] Invalid JSON from /load:', e.message);
+      console.error('[FBD] Raw response (first 200 chars):', raw.substring(0, 200));
+      return null;
+    }
+    console.log('[FBD] Program loaded:', raw.length, 'bytes, format:', parsed.format || '(none)');
+    return parsed;
+  } catch(e) {
+    console.warn('[FBD] loadProgram failed:', e.message);
+    return null;
+  }
+}
+
+// ── restoreFBD: import Drawflow visual model into the editor ──
+// Only accepts the new plc_program envelope or a raw drawflow object.
+// Refuses to import IR-only data (which would crash Drawflow).
+function restoreFBD(program) {
+  console.log('[FBD] restoreFBD called with:', program ? (program.format || '(no format)') : 'null');
+
+  if (!program || typeof program !== 'object') {
+    console.log('[FBD] No program data — starting blank');
+    return;
+  }
+
+  var fbdData = null;
+
+  if (program.format === 'plc_program' && program.source === 'ladder') {
+    // Ladder envelope — the drawflow field was generated by irToDrawflow() which
+    // now produces complete nodes (class, html with df-* bindings, typenode, inputs).
+    // We can import it directly into the FBD editor for read-only viewing.
+    // Note: the canvas shows the IR topology, not the original FBD layout.
+    // The user can re-draw in FBD or edit in Ladder — both are fully functional.
+    if (program.drawflow && program.drawflow.Home) {
+      fbdData = { drawflow: program.drawflow };
+      console.info('[FBD] Ladder envelope — restoring FBD view from irToDrawflow field');
+    } else {
+      console.info('[FBD] Ladder envelope has no drawflow field — FBD canvas left blank');
+      var sb = document.getElementById('sb-nodes');
+      if (sb) sb.textContent = 'Programa Ladder — abrí el editor Ladder para editar';
+      return;
+    }
+
+  } else if (program.format === 'plc_program' && program.fbd) {
+    // New dual-model FBD format: extract the visual model
+    fbdData = program.fbd;
+    console.log('[FBD] New format detected (plc_program v' + (program.version||'?') + ')');
+
+  } else if (program.format === 'ir') {
+    // Old format: IR was saved directly — cannot render in Drawflow.
+    // Do NOT crash. Show a status message and leave the canvas blank.
+    console.warn('[FBD] Legacy IR-only format detected. Cannot restore diagram.');
+    var sb = document.getElementById('sb-nodes');
+    if (sb) sb.textContent = 'Programa IR legacy — guardar de nuevo para activar restauracion';
+    return;
+
+  } else if (program.drawflow && program.drawflow.Home && program.fbd) {
+    // Older FBD envelope that has both drawflow and fbd keys
+    fbdData = program.fbd;
+    console.log('[FBD] Legacy FBD+drawflow format detected');
+
+  } else if (program.drawflow && program.drawflow.Home && !program.source) {
+    // Raw Drawflow export saved directly (pre-envelope era) — only safe if
+    // the nodes have the full Drawflow schema (class, html, inputs, etc.)
+    fbdData = program;
+    console.log('[FBD] Raw Drawflow format detected (legacy)');
+
+  } else if (Object.keys(program).length === 0) {
+    console.log('[FBD] Empty response from /load — no saved program');
+    return;
+
+  } else {
+    console.warn('[FBD] Unknown program format — cannot restore diagram', program);
+    return;
+  }
+
+  // Validate the Drawflow structure before importing
+  if (!fbdData || !fbdData.drawflow || !fbdData.drawflow.Home) {
+    console.warn('[FBD] FBD data is missing drawflow.Home — aborting import');
+    return;
+  }
+
+  // Validate that nodes have the required 'class' field (string).
+  // Older irToDrawflow versions lacked this field. Now it is always set.
+  // If absent, log a warning but still attempt import rather than aborting.
+  var homeData = fbdData.drawflow.Home.data || {};
+  var firstKey = Object.keys(homeData)[0];
+  if (firstKey && homeData[firstKey].class === undefined) {
+    console.warn('[FBD] Drawflow nodes missing "class" field — legacy irToDrawflow envelope. Import may be unstable.');
+    // Do not abort — attempt import with try/catch protection below.
+  }
+
+  // Safe import — wrap in try/catch so a corrupt file never crashes the UI
+  try {
+    editor.import(fbdData);
+    var nodeCount = 0;
+    try {
+      nodeCount = Object.keys(fbdData.drawflow.Home.data || {}).length;
+    } catch(e) {}
+    console.log('[FBD] Import OK —', nodeCount, 'nodes');
+    var sb = document.getElementById('sb-nodes');
+    if (sb) sb.textContent = 'NODOS: ' + nodeCount + ' | programa restaurado';
+    // Log symbol table if present (Bloque 1 programs)
+    if (program.symbolTable) {
+      console.info('[Bloque1] Symbol table loaded from envelope:',
+                   program.symbolTable.stats);
+    }
+  } catch(e) {
+    console.error('[FBD] editor.import failed:', e.message);
+    var sb = document.getElementById('sb-nodes');
+    if (sb) sb.textContent = 'Error al restaurar programa: ' + e.message;
+  }
+}
+
+// ── Startup: load saved program, restore FBD ─────────────────
+window.addEventListener('load', async function() {
+  console.log('[FBD] Loading program from ESP32...');
+  var program = await loadProgram();
+  console.log('[FBD] Received:', program ? program.format || '(no format)' : 'null');
+  restoreFBD(program);
+});
+</script>
+<div class="license-footer">
+  PLC-CORE-MDE © 2026 Martín Entraigas – MDE Electrónica  
+  Uso no comercial únicamente.  
+  <a href="LICENSE.txt" target="_blank">Ver licencia completa</a>
+</div>
+<style>
+.license-footer {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: 0.7;
+  margin-top: 24px;
+  margin-bottom: 8px;
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+}
+.license-footer a {
+  color: var(--accent2);
+  text-decoration: none;
+}
+.license-footer a:hover {
+  text-decoration: underline;
+}
+</style>
 </body>
 </html>

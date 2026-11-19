@@ -206,7 +206,7 @@
     <div class="codeblock">[IN1]──[R_TRIG]──CU─┐
                         ├──[CTU: PV=100]──Q──[OUT1: ALARMA]
 [IN2: RESET]────── R─┘              └──[NOT]──[OUT2: MOTOR]</div>
-    <div class="note"><strong>Concepto clave:</strong> R_TRIG convierte la señal del sensor en un pulso de 1 ciclo. Sin él, el CTU podría contar múltiples veces por pieza.</div>
+    <div class="note"><strong>Concepto clave:</strong> El CTU cuenta solo en el flanco ascendente de CU, por lo que un sensor activo varios scans suma 1. Aquí R_TRIG es redundante (inofensivo); se usa en otros circuitos (p. ej. toggle). El rebote mecánico sí genera flancos reales: filtrar con TON.</div>
 
     <hr class="sep">
 
@@ -296,8 +296,8 @@
     <p>El valor de tiempo (PT) no se guardó. Verificar que el campo tenga valor numérico (ej: <code>5000</code> para 5s). Guardar y hacer RELOAD.</p>
     <h3>La salida OUT no responde</h3>
     <p>Ir al Monitor y verificar el estado del nodo output. Si el nodo está correcto pero el hardware no responde, verificar cableado.</p>
-    <h3>El contador no cuenta</h3>
-    <p>Agregar <code>R_TRIG</code> entre la señal y el <code>CU</code> del contador. Sin R_TRIG el CTU puede incrementar múltiples veces por ciclo de scan.</p>
+    <h3>El contador no cuenta o cuenta de más</h3>
+    <p>El CTU/CTD cuentan una vez por flanco 0→1 en CU/CD (no mientras la señal se mantiene en 1); no hace falta R_TRIG. Verificar el cableado al puerto correcto y, si cuenta de más, el rebote del sensor (filtrar con TON).</p>
     <h3>PWM no genera señal</h3>
     <p>Un pin no puede funcionar en modo digital y PWM simultáneamente.</p>
 
@@ -305,17 +305,12 @@
 
     <!-- SCAN -->
     <h1 id="scan">Ciclo de scan del PLC</h1>
-    <p>El PLC ejecuta un ciclo continuo de <strong>10ms (100 Hz)</strong>:</p>
+    <p>El PLC ejecuta un ciclo continuo de <strong>10ms (100 Hz)</strong>. Cada nodo se evalúa una sola vez por scan, en orden de dependencias (a igualdad, el de menor ID); las conexiones que cierran un lazo de realimentación leen el valor del scan anterior. Esquema simplificado:</p>
     <div style="margin:16px 0;">
       <div class="scan-step"><span class="scan-n">1</span><span class="scan-t">Leer entradas físicas (IN1, IN2, AI1)</span></div>
-      <div class="scan-step"><span class="scan-n">2</span><span class="scan-t">Lógica combinacional (AND, OR, NOT, CMP)</span></div>
-      <div class="scan-step"><span class="scan-n">3</span><span class="scan-t">Timers (TON, TOF, TP, BLINK)</span></div>
-      <div class="scan-step"><span class="scan-n">4</span><span class="scan-t">Contadores (CTU, CTD)</span></div>
-      <div class="scan-step"><span class="scan-n">5</span><span class="scan-t">Memorias (SR, RS)</span></div>
-      <div class="scan-step"><span class="scan-n">6</span><span class="scan-t">Flancos (R_TRIG, F_TRIG)</span></div>
-      <div class="scan-step"><span class="scan-n">7</span><span class="scan-t">Escalar analógicos (SCALE)</span></div>
-      <div class="scan-step"><span class="scan-n">8</span><span class="scan-t">Escribir PWM</span></div>
-      <div class="scan-step"><span class="scan-n">9</span><span class="scan-t">Escribir salidas digitales (OUT1..4) → volver a 1</span></div>
+      <div class="scan-step"><span class="scan-n">2</span><span class="scan-t">Evaluar cada nodo una vez, en orden de dependencias (lógica, timers, contadores, memorias, flancos, SCALE)</span></div>
+      <div class="scan-step"><span class="scan-n">3</span><span class="scan-t">Escribir PWM</span></div>
+      <div class="scan-step"><span class="scan-n">4</span><span class="scan-t">Escribir salidas digitales (OUT1..4) → volver a 1</span></div>
     </div>
     <div class="note">La latencia máxima es de 10ms, completamente aceptable para aplicaciones industriales de control de proceso y movimiento lento.</div>
 

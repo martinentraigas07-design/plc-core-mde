@@ -1,0 +1,6 @@
+{
+  "name": "plc-core-mde-tests",
+  "private": true,
+  "description": "Pruebas de host del PLC-CORE-MDE (no son pruebas del ESP32)",
+  "devDependencies": { "jsdom": "31.0.1" }
+}

@@ -1,28 +1,14 @@
 var editor;
 
-window.onload = function ()
-{
-
-  const container = document.getElementById("editor");
-
+window.onload = function() {
+  var container = document.getElementById('editor');
   editor = new Drawflow(container);
-
   editor.start();
-  loadProgram();
-
+  // Program restore is handled by program.html's window.addEventListener('load').
+  // editor.js only initialises the Drawflow instance here.
+  // A second loadProgram() call here would race with program.html and could
+  // try to import IR data directly — which crashes Drawflow.
 };
-function loadProgram()
-{
-    fetch("/load")
-    .then(r => r.json())
-    .then(data =>
-    {
-        if (data.drawflow)
-        {
-            editor.import(data);
-        }
-    });
-}
 function addInput1()
 {
     editor.addNode(

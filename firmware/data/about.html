@@ -1,165 +1,222 @@
 <!DOCTYPE html>
-<!-- PLC-CORE-MDE Project · Copyright (c) 2026 Martín Entraigas / PLC-CORE-MDE · Licensed under PLC-CORE-MDE License v1.0 -->
+<!-- PLC-CORE-MDE Project -->
+<!-- Copyright (c) 2026 Martín Entraigas / PLC-CORE-MDE -->
+<!-- Argentina -->
+<!-- Licensed under PLC-CORE-MDE License v1.0 -->
+<!-- Educational use allowed -->
+<!-- Commercial use requires authorization -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PLC-CORE-MDE · About</title>
+<title>About — PLC-CORE-MDE</title>
 <link rel="stylesheet" href="style.css">
 <style>
-  /* ── About page layout ─────────────────────────────── */
-  .about-center {
+  
+  body {
+    background: var(--bg);
+    font-family: var(--font-ui);
+    color: var(--text);
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 100vh;
-    padding: 48px 20px 56px;
+    overflow-x: hidden;
+    position: relative;
   }
 
-  /* title block */
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(58,180,242,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(58,180,242,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  /* Scan line effect */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.05) 2px,
+      rgba(0,0,0,0.05) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  .corner {
+    position: fixed;
+    width: 60px; height: 60px;
+    border-color: var(--accent2);
+    border-style: solid;
+    opacity: 0.4;
+  }
+  .corner.tl { top: 20px; left: 20px; border-width: 2px 0 0 2px; }
+  .corner.tr { top: 20px; right: 20px; border-width: 2px 2px 0 0; }
+  .corner.bl { bottom: 20px; left: 20px; border-width: 0 0 2px 2px; }
+  .corner.br { bottom: 20px; right: 20px; border-width: 0 2px 2px 0; }
+
+  .about-wrap {
+    z-index: 10;
+    width: 520px;
+    max-width: 96vw;
+    animation: fadeIn 0.8s ease forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Title block */
   .about-title {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .about-title h1 {
     font-family: var(--font-head);
-    font-size: 34px;
+    font-size: 32px;
     font-weight: 700;
-    letter-spacing: 7px;
+    letter-spacing: 6px;
     color: var(--accent);
     text-transform: uppercase;
-    margin-bottom: 4px;
+    text-shadow: 0 0 20px rgba(245,166,35,0.4);
   }
-  .about-subtitle {
-    font-family: var(--font-head);
-    font-size: 13px;
-    font-weight: 500;
+  .about-title p {
+    font-family: var(--font-mono);
+    font-size: 11px;
     letter-spacing: 3px;
     color: var(--accent2);
-    text-transform: uppercase;
-    margin-bottom: 36px;
+    margin-top: 6px;
+    opacity: 0.8;
   }
 
-  /* info card */
+  /* Info card */
   .about-card {
-    width: 100%;
-    max-width: 520px;
     background: var(--panel);
     border: 1px solid var(--border);
-    border-top: 2px solid var(--accent);
+    border-top: 2px solid var(--accent2);
     border-radius: 4px;
-    padding: 22px 26px;
+    padding: 20px 24px;
     margin-bottom: 14px;
   }
-  .about-card.card-accent2 {
-    border-top-color: var(--accent2);
+  .about-card.license-card {
+    border-top-color: var(--accent);
   }
 
-  .card-heading {
+  .section-label {
     font-family: var(--font-head);
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: 3px;
-    color: var(--text-dim);
+    letter-spacing: 4px;
     text-transform: uppercase;
-    padding-bottom: 10px;
+    color: var(--accent2);
     margin-bottom: 14px;
+    padding-bottom: 8px;
     border-bottom: 1px solid var(--border);
   }
+  .license-card .section-label {
+    color: var(--accent);
+  }
 
-  /* key / value rows */
   .info-row {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 7px 0;
-    border-bottom: 1px solid var(--border);
+    align-items: baseline;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(30,42,56,0.6);
     font-size: 13px;
   }
-  .info-row:last-child { border-bottom: none; }
-
-  .info-key {
+  .info-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+  .info-label {
+    color: var(--text-dim);
     font-family: var(--font-mono);
     font-size: 11px;
     letter-spacing: 1px;
-    color: var(--text-dim);
   }
-  .info-val {
-    font-family: var(--font-ui);
-    font-size: 13px;
-    font-weight: 600;
+  .info-value {
     color: var(--text);
-    text-align: right;
-  }
-  .info-val.highlight { color: var(--accent2); }
-
-  /* features list */
-  .feat-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  .feat-list li {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 7px 0;
-    font-size: 13px;
-    color: var(--text);
-    border-bottom: 1px solid var(--border);
-  }
-  .feat-list li:last-child { border-bottom: none; }
-  .feat-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--accent2);
-    flex-shrink: 0;
-  }
-
-  /* license block */
-  .lic-name {
-    font-family: var(--font-head);
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: 2px;
-    color: var(--accent2);
-    margin-bottom: 12px;
-  }
-  .lic-line {
     font-family: var(--font-mono);
     font-size: 12px;
-    letter-spacing: 1px;
+    text-align: right;
+  }
+  .info-value.accent { color: var(--accent); }
+  .info-value.accent2 { color: var(--accent2); }
+
+  /* Feature list */
+  .feature-list {
+    margin-top: 4px;
+    padding: 0;
+    list-style: none;
+  }
+  .feature-list li {
+    font-family: var(--font-mono);
+    font-size: 11px;
     color: var(--text-mid);
+    letter-spacing: 1px;
     padding: 4px 0;
+    border-bottom: 1px solid rgba(30,42,56,0.5);
     display: flex;
     align-items: center;
     gap: 8px;
   }
-  .lic-line .lic-dot {
-    width: 5px; height: 5px;
-    border-radius: 50%;
+  .feature-list li:last-child { border-bottom: none; }
+  .feature-list li::before {
+    content: '◈';
+    color: var(--accent2);
+    font-size: 9px;
     flex-shrink: 0;
   }
-  .lic-line.allow .lic-dot { background: var(--green); }
-  .lic-line.allow { color: var(--green); }
-  .lic-line.warn  .lic-dot { background: var(--yellow); }
-  .lic-line.warn  { color: var(--yellow); }
 
-  /* footer text */
-  .about-footer {
+  /* License text */
+  .license-text {
     font-family: var(--font-mono);
     font-size: 11px;
-    letter-spacing: 2px;
-    color: var(--text-dim);
-    margin-bottom: 28px;
-    text-align: center;
+    color: var(--text-mid);
+    letter-spacing: 1px;
+    line-height: 1.8;
+  }
+  .license-text .lic-name {
+    color: var(--accent);
+    font-size: 12px;
+    display: block;
+    margin-bottom: 6px;
+  }
+  .license-text .lic-edu {
+    color: var(--green);
+  }
+  .license-text .lic-com {
+    color: var(--yellow, #ffd740);
   }
 
-  /* back button — same visual as menu-btn */
+  /* Footer */
+  .about-footer {
+    text-align: center;
+    margin-top: 4px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+  }
+
+  /* Back button */
   .back-btn {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 8px;
-    padding: 18px 48px;
+    padding: 18px 16px;
     background: var(--panel);
     border: 1px solid var(--border);
     border-top: 2px solid var(--accent2);
@@ -170,6 +227,7 @@
     transition: all 0.2s;
     position: relative;
     overflow: hidden;
+    margin-bottom: 14px;
   }
   .back-btn::before {
     content: '';
@@ -185,7 +243,6 @@
   }
   .back-btn:hover::before { opacity: 1; }
   .back-btn:hover .back-icon { color: var(--accent); }
-
   .back-icon {
     font-size: 22px;
     color: var(--accent2);
@@ -198,23 +255,6 @@
     letter-spacing: 3px;
     text-transform: uppercase;
   }
-  .back-desc {
-    font-size: 10px;
-    color: var(--text-dim);
-    letter-spacing: 1px;
-  }
-
-  /* corner decorations (same as index) */
-  .corner {
-    position: fixed;
-    width: 18px; height: 18px;
-    border-color: var(--border2);
-    border-style: solid;
-  }
-  .corner.tl { top:20px; left:20px;  border-width:2px 0 0 2px; }
-  .corner.tr { top:20px; right:20px; border-width:2px 2px 0 0; }
-  .corner.bl { bottom:20px; left:20px;  border-width:0 0 2px 2px; }
-  .corner.br { bottom:20px; right:20px; border-width:0 2px 2px 0; }
 </style>
 </head>
 <body>
@@ -224,72 +264,75 @@
 <div class="corner bl"></div>
 <div class="corner br"></div>
 
-<div class="about-center">
+<div class="about-wrap">
 
   <!-- Title -->
-  <div class="about-title">PLC-CORE-MDE</div>
-  <div class="about-subtitle">Modular ESP32 PLC System</div>
-
-  <!-- System Information -->
-  <div class="about-card">
-    <div class="card-heading">System Information</div>
-    <div class="info-row">
-      <span class="info-key">Author</span>
-      <span class="info-val">Martín Entraigas</span>
-    </div>
-    <div class="info-row">
-      <span class="info-key">Project</span>
-      <span class="info-val">PLC-CORE-MDE</span>
-    </div>
-    <div class="info-row">
-      <span class="info-key">Firmware</span>
-      <span class="info-val highlight">v0.1</span>
-    </div>
-    <div class="info-row">
-      <span class="info-key">Web UI</span>
-      <span class="info-val highlight">v0.1</span>
-    </div>
+  <div class="about-title">
+    <h1>PLC-CORE-MDE</h1>
+    <p>Modular ESP32 PLC System</p>
   </div>
-
-  <!-- Features -->
-  <div class="about-card card-accent2">
-    <div class="card-heading">Features</div>
-    <ul class="feat-list">
-      <li><span class="feat-dot"></span>ESP32 Core Controller</li>
-      <li><span class="feat-dot"></span>Embedded Web Server</li>
-      <li><span class="feat-dot"></span>IEC61131 Runtime Engine</li>
-      <li><span class="feat-dot"></span>FBD Graphical Programming</li>
-      <li><span class="feat-dot"></span>RS485 Modbus Expansion Bus</li>
-      <li><span class="feat-dot"></span>Modular IO Architecture</li>
-      <li><span class="feat-dot"></span>Web Simulator Support</li>
-      <li><span class="feat-dot"></span>Open Modular Platform</li>
-    </ul>
-  </div>
-
-  <!-- License -->
-  <div class="about-card card-accent2">
-    <div class="card-heading">License</div>
-    <div class="lic-name">PLC-CORE-MDE License v1.0</div>
-    <div class="lic-line allow"><span class="lic-dot"></span>Educational use allowed</div>
-    <div class="lic-line warn"><span class="lic-dot"></span>Commercial use requires authorization</div>
-  </div>
-
-  <!-- Footer -->
-  <div class="about-footer">&copy; 2026 Martín Entraigas / PLC-CORE-MDE</div>
 
   <!-- Back button -->
   <a href="index.html" class="back-btn">
     <div class="back-icon">←</div>
-    <div class="back-label">Back</div>
-    <div class="back-desc">Volver al menú principal</div>
+    <div class="back-label">Volver</div>
   </a>
 
+  <!-- System Information -->
+  <div class="about-card">
+    <div class="section-label">System Information</div>
+
+    <div class="info-row">
+      <span class="info-label">Author</span>
+      <span class="info-value accent2">Martín Entraigas</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Project</span>
+      <span class="info-value">PLC-CORE-MDE</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Firmware</span>
+      <span class="info-value accent">v0.1</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Web UI</span>
+      <span class="info-value accent">v0.1</span>
+    </div>
+
+    <div style="margin-top:14px;">
+      <div class="info-label" style="margin-bottom:8px;">Features</div>
+      <ul class="feature-list">
+        <li>ESP32 Core Controller</li>
+        <li>Embedded Web Server</li>
+        <li>IEC61131 Runtime Engine</li>
+        <li>FBD Graphical Programming</li>
+        <li>RS485 Modbus Expansion Bus</li>
+        <li>Modular IO Architecture</li>
+        <li>Web Simulator Support</li>
+        <li>Open Modular Platform</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- License -->
+  <div class="about-card license-card">
+    <div class="section-label">License</div>
+    <div class="license-text">
+      <span class="lic-name">PLC-CORE-MDE License v1.0</span>
+      <span class="lic-edu">✔ Educational use allowed</span><br>
+      <span class="lic-com">⚠ Commercial use requires authorization</span>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="about-footer">
+    &copy; 2026 Martín Entraigas / PLC-CORE-MDE
+  </div>
+
 </div>
 
-<!-- PLC-CORE-MDE Project · Copyright (c) 2026 Martín Entraigas / PLC-CORE-MDE · Licensed under PLC-CORE-MDE License v1.0 -->
-<div style="position:fixed;bottom:0;left:0;width:100%;font-size:11px;color:#888;text-align:center;pointer-events:none;z-index:9999;padding:3px 0 4px;">
-  PLC-CORE-MDE License v1.0 &nbsp;·&nbsp; Copyright &copy; 2026 Martín Entraigas / PLC-CORE-MDE &nbsp;·&nbsp; Argentina &nbsp;·&nbsp; Educational use allowed &nbsp;·&nbsp; Commercial use requires authorization
-</div>
+<!-- License Overlay -->
+<div style="position:fixed;bottom:0;left:0;width:100%;font-size:11px;color:#888;text-align:center;pointer-events:none;z-index:9999;">PLC-CORE-MDE &copy; 2026 Mart&iacute;n Entraigas / PLC-CORE-MDE &mdash; Licensed under PLC-CORE-MDE License v1.0 &mdash; Commercial use requires authorization</div>
 
 </body>
 </html>
